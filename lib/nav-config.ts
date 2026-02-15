@@ -19,7 +19,7 @@ export const navConfig: Record<Role, SidebarNavItem[]> = {
   admin: [
     {
       title: "Dashboard",
-      href: "/admin/dashboard",
+      href: "/admin",
       icon: LayoutDashboard,
     },
     {
@@ -41,7 +41,7 @@ export const navConfig: Record<Role, SidebarNavItem[]> = {
   judge: [
     {
       title: "Dashboard",
-      href: "/judge/dashboard",
+      href: "/judge",
       icon: LayoutDashboard,
     },
     // Add more judge routes as needed, based on requirements
