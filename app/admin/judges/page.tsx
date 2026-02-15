@@ -4,6 +4,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
   Table,
   TableBody,
   TableCell,
@@ -11,6 +22,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Gavel, Plus, UserPlus, Users } from "lucide-react";
+import { mockJudges, mockTeams, mockRounds } from "@/lib/mock/adminMockData";
+import { cn } from "@/lib/utils";
+import type { Judge } from "@/lib/redux/api/types";
 
 // Define types
 type Judge = {
