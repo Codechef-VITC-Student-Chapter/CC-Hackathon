@@ -43,7 +43,7 @@ export default function LoginPage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-center text-3xl font-bold">
-          Sign in
+            Sign in
           </CardTitle>
 
           <CardDescription className="text-center">
@@ -70,17 +70,17 @@ export default function LoginPage() {
                   You can add an <img /> or icon here later if needed 
                 */}
                 <div className="flex items-center justify-center gap-2">
-                <img
-                  src={`/login_icons/${role}.svg`}
-                  alt=""
-                  className="h-5 w-5 invert opacity-80"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
-                <p className="capitalize">{role}</p>
-              </div>
-
+                  <img
+                    src={`/login_icons/${role}.svg`}
+                    alt=""
+                    className="h-5 w-5 invert opacity-80"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display =
+                        "none";
+                    }}
+                  />
+                  <p className="capitalize">{role}</p>
+                </div>
               </button>
             ))}
           </div>
