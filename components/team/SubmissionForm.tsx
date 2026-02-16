@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import type { SubtaskSummary } from "./SubtaskCard";
+import { useSubmitProjectMutation } from "@/lib/redux/api/teamApi";
 
 type Props = {
   subtask: SubtaskSummary;
@@ -27,11 +28,14 @@ export default function SubmissionForm({
   const [busy, setBusy] = useState(false);
   const [final, setFinal] = useState(false);
 
-  const canSubmit = (githubUrl || docUrl) && !busy && !final;
+  // RTK Query hook
+  const [submitProject, { isLoading }] = useSubmitProjectMutation();
+
+  const canSubmit = (githubUrl || docUrl) && !isLoading && !final;
 
   async function handleFinalSubmit() {
     if (!canSubmit) return;
-    setBusy(true);
+    
     try {
       const payload = {
         roundId: roundId ?? "",
@@ -41,29 +45,19 @@ export default function SubmissionForm({
         overview: overview,
       };
 
-      const res = await fetch("/api/team/submission", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      await submitProject(payload).unwrap();
+      
+      setFinal(true);
+      onFinalSubmitted?.({ 
+          subtaskId: subtask.id, 
+          githubUrl, 
+          docUrl,
+          fileName: overview ? "Overview provided" : undefined
       });
-      const data = await res.json();
-      if (res.ok) {
-        setFinal(true);
-        onFinalSubmitted?.({ 
-            subtaskId: subtask.id, 
-            githubUrl, 
-            docUrl,
-            fileName: overview ? "Overview provided" : undefined
-        });
-      } else {
-        console.error(data);
-        alert("Submission failed: " + (data.error || "Unknown error"));
-      }
-    } catch (e) {
+      
+    } catch (e: any) {
       console.error(e);
-      alert("Submission error");
-    } finally {
-      setBusy(false);
+      alert("Submission failed: " + (e?.data?.error || "Unknown error"));
     }
   }
 
@@ -118,7 +112,7 @@ export default function SubmissionForm({
           >
             {final
               ? "Submitted Successfully"
-              : busy
+              : isLoading
               ? "Submitting..."
               : "Final Submit"}
           </button>

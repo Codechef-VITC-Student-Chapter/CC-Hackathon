@@ -5,22 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useGetTeamSubmissionsQuery } from "@/lib/redux/api/teamApi";
 
 export default function TeamSubmissionsPage() {
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/team/submission")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setSubmissions(data);
-        }
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: submissions = [], isLoading: loading } = useGetTeamSubmissionsQuery();
 
   if (loading) {
     return (
