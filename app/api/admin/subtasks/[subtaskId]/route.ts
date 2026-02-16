@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/config/db";
 import Subtask from "@/models/Subtask";
+import mongoose from "mongoose";
 
 // PUT: Update a subtask
 export async function PUT(
@@ -44,10 +45,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Subtask not found" }, { status: 404 });
     }
 
+    // Cascade Delete
+    // 1. Delete Team Selections for this subtask
+    await mongoose.connection.collection("teamsubtaskselections").deleteMany({ subtask_id: new mongoose.Types.ObjectId(subtaskId) });
+
     return NextResponse.json({
       message: `Subtask ${subtaskId} deleted successfully`,
     });
   } catch (error) {
+    console.error("Error deleting subtask:", error);
     return NextResponse.json({ error: "Failed to delete subtask" }, { status: 500 });
   }
 }

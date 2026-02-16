@@ -20,14 +20,14 @@ import {
   PlayCircle,
   StopCircle,
   Upload,
+  Loader2,
 } from "lucide-react";
-import { mockDashboard, mockRounds } from "@/lib/mock/adminMockData";
 import { cn } from "@/lib/utils";
 
 export default function AdminDashboardPage() {
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [submissionToggled, setSubmissionToggled] = useState(false);
-  const [stats, setStats] = useState<any>(mockDashboard);
+  const [stats, setStats] = useState<any>(null);
   const [rounds, setRounds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -135,6 +135,15 @@ export default function AdminDashboardPage() {
         alert("Failed to toggle submission");
     }
   };
+
+  if (loading || !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-lime-500" />
+        <p className="text-muted-foreground animate-pulse">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -64,13 +64,22 @@ export async function POST(request: Request) {
     let userId;
 
     if (existingUser) {
+      if (existingUser.role !== "judge" && existingUser.role !== "admin") {
+        return NextResponse.json({ error: "Email is already registered as a Team or other role." }, { status: 400 });
+      }
+
+      // Check if judge profile already exists for this user
+      const existingJudge = await Judge.findOne({ user_id: existingUser._id });
+      if (existingJudge) {
+        return NextResponse.json({ error: "Judge profile already exists for this email." }, { status: 400 });
+      }
+
       userId = existingUser._id;
-      // Optionally update role if needed
     } else {
       const newUser = await User.create({
         name,
         email,
-        password: password || "password123", // Default password or generated
+        password_hash: "password123", // Default password or generated (TODO: Email this)
         role: "judge"
       });
       userId = newUser._id;

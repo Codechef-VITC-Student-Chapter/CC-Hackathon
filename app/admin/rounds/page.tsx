@@ -32,6 +32,8 @@ export default function AdminRoundsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [roundNumber, setRoundNumber] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [rounds, setRounds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +66,8 @@ export default function AdminRoundsPage() {
         body: JSON.stringify({
           round_number: parseInt(roundNumber),
           instructions,
+          start_time: startTime ? new Date(startTime).toISOString() : null,
+          end_time: endTime ? new Date(endTime).toISOString() : null,
           // name is not in schema but maybe we interpret "Round X"
         }),
       });
@@ -73,6 +77,8 @@ export default function AdminRoundsPage() {
         setCreateOpen(false);
         setRoundNumber("");
         setInstructions("");
+        setStartTime("");
+        setEndTime("");
         fetchRounds();
       } else {
         const err = await res.json();
@@ -141,6 +147,28 @@ export default function AdminRoundsPage() {
                     onChange={(e) => setInstructions(e.target.value)}
                     className="rounded-lg"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="start-time">Start Time</Label>
+                    <Input
+                      id="start-time"
+                      type="datetime-local"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="rounded-lg block"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="end-time">End Time</Label>
+                    <Input
+                      id="end-time"
+                      type="datetime-local"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="rounded-lg block"
+                    />
+                  </div>
                 </div>
               </div>
               <DialogFooter>

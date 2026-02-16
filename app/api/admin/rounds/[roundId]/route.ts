@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/config/db";
 import Round from "@/models/Round";
+import mongoose from "mongoose";
 
 // GET: Fetch a specific round
 export async function GET(
@@ -39,7 +40,7 @@ export async function PATCH(
       round.is_active = true;
     } else if (body.action === "stop") {
       round.is_active = false;
-    } else if (body.action === "toggle") {
+    } else if (body.action === "toggle-submission" || body.action === "toggle") {
       round.submission_enabled = !round.submission_enabled;
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
@@ -97,7 +98,7 @@ export async function PUT(
   }
 }
 
-// DELETE: Delete a round
+// DELETE: Delete a round and cascade to related data
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ roundId: string }> }
@@ -110,7 +111,23 @@ export async function DELETE(
     if (!deletedRound) {
       return NextResponse.json({ error: "Round not found" }, { status: 404 });
     }
-    return NextResponse.json({ message: "Round deleted successfully" });
+
+    // Cascade Delete
+    // 1. Delete Subtasks for this round
+    await mongoose.connection.collection("subtasks").deleteMany({ round_id: roundId });
+    // 2. Delete Submissions for this round
+    await mongoose.connection.collection("submissions").deleteMany({ round_id: roundId });
+    // 3. Delete Team Selections for this round
+    await mongoose.connection.collection("teamsubtaskselections").deleteMany({ round_id: roundId });
+    // 4. Delete Scores for this round
+    await mongoose.connection.collection("scores").deleteMany({ round_id: roundId });
+    // 5. Delete Judge Assignments for this round
+    await mongoose.connection.collection("judgeassignments").deleteMany({ round_id: roundId });
+
+    return NextResponse.json({
+      message: "Round deleted successfully",
+      details: "Cascaded delete to subtasks, submissions, selections, scores, and assignments."
+    });
   } catch (error) {
     console.error("Error deleting round:", error);
     return NextResponse.json({ error: "Failed to delete round" }, { status: 500 });

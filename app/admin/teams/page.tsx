@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Define team type based on API response
@@ -69,10 +80,20 @@ export default function AdminTeamsPage() {
         
         setTeams(data.map((t: any) => ({
             ...t,
-            isLocked: t.is_locked, // Mapped from DB field
-            isShortlisted: t.is_shortlisted,
-            isEliminated: t.is_eliminated,
-            submissionStatus: t.is_locked ? "locked" : "pending" // Simplified status logic
+            // The API now returns 'submissionStatus' which factors in real boolean status
+            // We just ensure the camelCase matches what the API sends.
+            // API sends: id, name, track, isLocked, isShortlisted, isEliminated, submissionStatus
+            // Our local type expects: isLocked, isShortlisted...
+            // So we can largely just use 't' but let's be explicit to be safe
+            id: t.id,
+            name: t.name,
+            track: t.track,
+            currentRoundName: t.currentRoundName,
+            score: t.score,
+            isLocked: t.isLocked,
+            isShortlisted: t.isShortlisted,
+            isEliminated: t.isEliminated,
+            submissionStatus: t.submissionStatus
         })));
       }
     } catch (e) {
@@ -121,8 +142,44 @@ export default function AdminTeamsPage() {
       updateTeamStatus(teamId, { is_eliminated: true });
   };
 
+  // Create Team Logic
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamEmail, setNewTeamEmail] = useState("");
+  const [newTeamTrack, setNewTeamTrack] = useState("");
+
+  const handleCreateTeam = async () => {
+    try {
+        const res = await fetch("/api/admin/teams", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                name: newTeamName, 
+                email: newTeamEmail,
+                track: newTeamTrack 
+            })
+        });
+        
+        if (res.ok) {
+            alert("Team created successfully");
+            setCreateOpen(false);
+            setNewTeamName("");
+            setNewTeamEmail("");
+            setNewTeamTrack("");
+            fetchTeams();
+        } else {
+            alert("Failed to create team");
+        }
+    } catch (error) {
+        console.error("Error creating team:", error);
+        alert("Error creating team");
+    }
+  };
+
   const submissionStatusVariant = (status: string) => {
     switch (status) {
+      case "eliminated": return "destructive";
+      case "shortlisted": return "default"; // or a custom green class
       case "submitted": return "default";
       case "pending": return "secondary";
       case "locked": return "outline";
@@ -140,7 +197,61 @@ export default function AdminTeamsPage() {
           View and edit team details. Select a team to lock submissions,
           shortlist, or eliminate.
         </p>
+        <div className="mt-4">
+            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+                <Plus className="size-4" /> Create Team
+            </Button>
+        </div>
       </header>
+    
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Team</DialogTitle>
+                <DialogDescription>
+                  Enter the team name and track.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Team Name</Label>
+                  <Input
+                    id="name"
+                    value={newTeamName}
+                    onChange={(e) => setNewTeamName(e.target.value)}
+                    placeholder="e.g. CodeWizards"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Leader Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newTeamEmail}
+                    onChange={(e) => setNewTeamEmail(e.target.value)}
+                    placeholder="leader@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="track">Track</Label>
+                  <Input
+                    id="track"
+                    value={newTeamTrack}
+                    onChange={(e) => setNewTeamTrack(e.target.value)}
+                    placeholder="e.g. AI/ML"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateTeam} disabled={!newTeamName || !newTeamEmail}>
+                  Create Team
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
       <Card
         className={cn(
@@ -167,7 +278,7 @@ export default function AdminTeamsPage() {
                   <TableHead className="font-semibold">Track</TableHead>
                   <TableHead className="font-semibold">Current round</TableHead>
                   <TableHead className="font-semibold">Score</TableHead>
-                  <TableHead className="font-semibold">Submission status</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
                   <TableHead className="w-12 font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -184,7 +295,11 @@ export default function AdminTeamsPage() {
                       setSelectedTeamId((id) => (id === team.id ? null : team.id))
                     }
                   >
-                    <TableCell className="font-medium">{team.name}</TableCell>
+                    <TableCell className="font-medium">
+                        <Link href={`/admin/teams/${team.id}`} className="hover:underline text-blue-400">
+                            {team.name}
+                        </Link>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {team.track ?? "—"}
                     </TableCell>

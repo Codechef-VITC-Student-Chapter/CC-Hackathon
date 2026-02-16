@@ -11,7 +11,7 @@ export interface ITeam extends Document {
 }
 
 const TeamSchema = new Schema<ITeam>({
-  team_name: { type: String, required: true },
+  team_name: { type: String, required: true, unique: true },
   track: { type: String, required: true },
   rounds_accessible: [
     { type: Schema.Types.ObjectId, ref: "Round" },

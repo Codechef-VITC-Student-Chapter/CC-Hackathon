@@ -31,6 +31,7 @@ export default function RoundDetailsPage() {
 
   // Edit Round State
   const [instructions, setInstructions] = useState("");
+  const [roundNumber, setRoundNumber] = useState(""); // Added state
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
@@ -48,11 +49,19 @@ export default function RoundDetailsPage() {
 
       if (roundRes.ok) {
         const data = await roundRes.json();
-        setRound(data);
+        setRoundNumber(data.round_number);
         setInstructions(data.instructions || "");
-        // Format dates for input datetime-local if needed, or just display
-        // For simplicity, we might just handle instructions for now
-        // handling datetime-local needs YYYY-MM-DDThh:mm format
+        if (data.start_time) {
+            const date = new Date(data.start_time);
+            const localIso = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+            setStartTime(localIso);
+        }
+        if (data.end_time) {
+            const date = new Date(data.end_time);
+            const localIso = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+            setEndTime(localIso);
+        }
+        setRound(data);
       }
 
       if (subtasksRes.ok) {
@@ -77,8 +86,8 @@ export default function RoundDetailsPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 instructions,
-                // start_time: startTime, // TODO: Implement date picking
-                // end_time: endTime
+                start_time: startTime ? new Date(startTime).toISOString() : null,
+                end_time: endTime ? new Date(endTime).toISOString() : null
             })
         });
         if (res.ok) {
@@ -173,6 +182,26 @@ export default function RoundDetailsPage() {
                             placeholder="Round instructions..."
                             className="min-h-[100px]"
                         />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Start Time</Label>
+                            <Input 
+                                type="datetime-local"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                className="block"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>End Time</Label>
+                            <Input 
+                                type="datetime-local"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                className="block"
+                            />
+                        </div>
                     </div>
                     {/* Add Date pickers here later */}
                     <Button onClick={handleUpdateRound} className="gap-2">
