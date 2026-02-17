@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
+import { useGetJudgeTeamDetailsQuery, useSubmitScoreMutation } from "@/lib/redux/api/judgeApi";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 // Define types
 type TeamInfo = {
@@ -28,29 +28,37 @@ export default function JudgeRoundPage() {
   const roundId = params?.round as string || "round-2";
   const teamId = searchParams?.get('team_id') || "";
 
-  // State management
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Helper hook to fetch data
+  const { data: responseData, isLoading, isError, error } = useGetJudgeTeamDetailsQuery(
+      { roundId, teamId }, 
+      { skip: !teamId }
+  );
+
+  const [submitScore, { isLoading: isSubmitting }] = useSubmitScoreMutation();
+
   const [evaluation, setEvaluation] = useState<Evaluation>({
     score: "",
     remarks: ""
   });
 
-  // Mock team data - would come from API
-  const [teamInfo] = useState<TeamInfo>({
-    id: teamId,
-    name: teamId === "team-alpha" ? "Team Alpha" : teamId === "team-beta" ? "Team Beta" : "Team",
-    chosenTask: "Build an AI-powered recommendation system",
-    submittedFiles: [
-      { name: "project-demo.mp4", url: "#", type: "video" },
-      { name: "documentation.pdf", url: "#", type: "pdf" },
-      { name: "source-code.zip", url: "#", type: "archive" }
-    ],
-    submittedLinks: [
-      "https://github.com/team-alpha/project",
-      "https://demo.team-alpha.com"
-    ]
-  });
+  const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
+
+  useEffect(() => {
+     if (responseData) {
+        // responseData is now the direct object
+        const { team, submission, selected_subtask } = responseData;
+        if (team) {
+            setTeamInfo({
+                id: team.team_id,
+                name: team.team_name,
+                chosenTask: selected_subtask ? selected_subtask.title : "No task selected",
+                submittedFiles: submission?.file_url ? [{ name: "Submission File", url: submission.file_url, type: "file" }] : [],
+                submittedLinks: submission?.github_link ? [submission.github_link] : []
+            });
+        }
+     }
+  }, [responseData]);
+
 
   // Handle input change
   const handleScoreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,41 +77,37 @@ export default function JudgeRoundPage() {
   const handleSubmitEvaluation = async () => {
     // Validation
     if (!evaluation.score) {
-      alert("Please enter a score");
+      toast.error("Please enter a score");
       return;
     }
 
     if (parseInt(evaluation.score) < 0 || parseInt(evaluation.score) > 100) {
-      alert("Score must be between 0 and 100");
+      toast.error("Score must be between 0 and 100");
       return;
     }
 
     const confirmed = window.confirm(
-      `Submit evaluation for ${teamInfo.name}?\n\nScore: ${evaluation.score}\nRemarks: ${evaluation.remarks || 'None'}`
+      `Submit evaluation for ${teamInfo?.name}?\n\nScore: ${evaluation.score}\nRemarks: ${evaluation.remarks || 'None'}`
     );
     if (!confirmed) return;
 
-    setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      console.log("Submitted evaluation:", {
-        teamId,
-        roundId,
-        score: parseInt(evaluation.score),
-        remarks: evaluation.remarks
-      });
-      
-      alert(`Evaluation submitted successfully!\n\nTeam: ${teamInfo.name}\nScore: ${evaluation.score}`);
+      await submitScore({
+          roundId,
+          teamId,
+          scores: {
+             score: parseInt(evaluation.score),
+             remarks: evaluation.remarks
+          }
+      }).unwrap();
+
+      toast.success(`Evaluation submitted successfully for ${teamInfo?.name}`);
       
       // Navigate back to judge home
       router.push('/judge');
     } catch (error) {
       console.error("Failed to submit evaluation:", error);
-      alert("Failed to submit evaluation. Please try again.");
-    } finally {
-      setIsSubmitting(false);
+      toast.error("Failed to submit evaluation. Please try again.");
     }
   };
 
@@ -136,6 +140,35 @@ export default function JudgeRoundPage() {
         );
     }
   };
+
+
+  if (isLoading) {
+    return (
+      <main className="relative min-h-screen w-full overflow-hidden bg-slate-950 flex items-center justify-center">
+         <div className="flex flex-col items-center gap-4">
+             <div className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+             <p className="text-slate-400 font-mono animate-pulse">Loading team data...</p>
+         </div>
+      </main>
+    )
+  }
+
+  if (isError || !teamInfo) {
+      return (
+          <main className="relative min-h-screen w-full flex items-center justify-center bg-slate-950 text-white">
+              <div className="text-center p-6">
+                  <h2 className="text-xl font-bold text-red-500">Error loading team details</h2>
+                  <p className="text-slate-400 mt-2">{(error as any)?.data?.error || "Unknown error or Team not found"}</p>
+                   <button 
+                    onClick={() => router.push('/judge')}
+                    className="mt-4 px-4 py-2 bg-slate-800 rounded hover:bg-slate-700 transition"
+                  >
+                    Back to Dashboard
+                  </button>
+              </div>
+          </main>
+      );
+  }
 
   return (
     <main className="relative min-h-screen w-full overflow-hidden bg-slate-950">
@@ -336,10 +369,7 @@ export default function JudgeRoundPage() {
                   <div className="relative flex items-center justify-center gap-2 rounded-[10px] bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 group-hover/btn:bg-slate-900/50">
                     {isSubmitting ? (
                       <>
-                        <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                        <Loader2 className="animate-spin h-5 w-5" />
                         <span>Submitting...</span>
                       </>
                     ) : (

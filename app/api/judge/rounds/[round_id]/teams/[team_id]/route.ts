@@ -33,7 +33,18 @@ export async function GET(
 ) {
   await connectDB()
 
-  const { round_id, team_id } = await context.params
+  const { round_id: paramRoundId, team_id } = await context.params
+
+  let round_id = paramRoundId;
+  if (round_id === "active") {
+    const Round = await import("@/models/Round").then(m => m.default);
+    const activeRound = await Round.findOne({ is_active: true });
+    if (activeRound) {
+      round_id = activeRound._id.toString();
+    } else {
+      return new Response(JSON.stringify({ error: "No active round found" }), { status: 404 });
+    }
+  }
 
   const team = await Team.findById(team_id)
   if (!team) {
@@ -53,21 +64,19 @@ export async function GET(
   }).sort({ submitted_at: -1 })
 
   return Response.json({
-    data: {
-      team: {
-        team_id: team._id,
-        team_name: team.team_name,
-        track: team.track,
-      },
-      selected_subtask: selection ? selection.subtask_id : null,
-      submission: submission
-        ? {
-            file_url: submission.file_url,
-            github_link: submission.github_link,
-            submitted_at: submission.submitted_at,
-          }
-        : null,
+    team: {
+      team_id: team._id,
+      team_name: team.team_name,
+      track: team.track,
     },
+    selected_subtask: selection ? selection.subtask_id : null,
+    submission: submission
+      ? {
+        file_url: submission.file_url,
+        github_link: submission.github_link,
+        submitted_at: submission.submitted_at,
+      }
+      : null,
   })
 }
 
@@ -88,7 +97,19 @@ export async function POST(
     })
   }
 
-  const { round_id, team_id } = await context.params
+  const { round_id: paramRoundId, team_id } = await context.params
+
+  let round_id = paramRoundId;
+  if (round_id === "active") {
+    const Round = await import("@/models/Round").then(m => m.default);
+    const activeRound = await Round.findOne({ is_active: true });
+    if (activeRound) {
+      round_id = activeRound._id.toString();
+    } else {
+      return new Response(JSON.stringify({ error: "No active round found" }), { status: 404 });
+    }
+  }
+
   const body = await req.json().catch(() => ({}))
   const { score: scoreValue, remarks } = body
 
@@ -110,13 +131,23 @@ export async function POST(
     })
   }
 
-  const doc = await Score.create({
-    judge_id: ids.judge._id,
-    team_id,
-    round_id,
-    score: scoreValue,
-    remarks: remarks || "",
-  })
+  const doc = await Score.findOneAndUpdate(
+    {
+      judge_id: ids.judge._id,
+      team_id,
+      round_id,
+    },
+    {
+      score: scoreValue,
+      remarks: remarks || "",
+      updated_at: new Date(),
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  )
 
   return Response.json({ data: doc })
 }
@@ -138,7 +169,19 @@ export async function PUT(
     })
   }
 
-  const { round_id, team_id } = await context.params
+  const { round_id: paramRoundId, team_id } = await context.params
+
+  let round_id = paramRoundId;
+  if (round_id === "active") {
+    const Round = await import("@/models/Round").then(m => m.default);
+    const activeRound = await Round.findOne({ is_active: true });
+    if (activeRound) {
+      round_id = activeRound._id.toString();
+    } else {
+      return new Response(JSON.stringify({ error: "No active round found" }), { status: 404 });
+    }
+  }
+
   const body = await req.json().catch(() => ({}))
   const { score: scoreValue, remarks } = body
 

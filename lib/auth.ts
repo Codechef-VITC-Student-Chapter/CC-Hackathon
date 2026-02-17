@@ -14,13 +14,8 @@ if (!googleClientId || !googleClientSecret) {
 const clientId = googleClientId || "dummy_client_id";
 const clientSecret = googleClientSecret || "dummy_client_secret";
 
-// Mock function to determine role based on email
-// In a real application, you would fetch this from your database
-const getRoleForEmail = (email: string): "admin" | "judge" | "team" => {
-  if (email.includes("admin") || email.endsWith("@org.admin")) return "admin";
-  if (email.includes("judge") || email.endsWith("@org.judge")) return "judge";
-  return "team"; // Default role
-};
+import User from "@/models/User";
+import { connectDB } from "@/config/db";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -36,13 +31,22 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user && user.email) {
-        token.role = getRoleForEmail(user.email);
+        await connectDB();
+        const dbUser = await User.findOne({ email: user.email });
+
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.team_id = dbUser.team_id?.toString();
+        } else {
+          token.role = "team";
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.role = token.role;
+        session.user.team_id = token.team_id;
       }
       return session;
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import {
   XCircle,
   Users,
   MoreHorizontal,
+  Plus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,84 +28,109 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { mockTeams } from "@/lib/mock/adminMockData";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import type { TeamDetail } from "@/lib/redux/api/types";
+import { 
+  useGetAdminTeamsQuery, 
+  useCreateTeamMutation, 
+  useUpdateTeamStatusMutation 
+} from "@/lib/redux/api/adminApi";
+import { toast } from "sonner";
 
-// Define team type
+// Define team type based on API response
 type Team = {
   id: string;
   name: string;
-  score: number;
-  scoreTrend: 'up' | 'down' | 'neutral';
-  submissionStatus: 'submitted' | 'in-progress' | 'pending';
-  currentRound: string;
   track: string;
+  currentRoundId: string | null;
+  currentRoundName: string | null;
+  score: number | null;
+  submissionStatus: string; // 'submitted' | 'pending' | 'locked'
   isLocked: boolean;
   isShortlisted: boolean;
   isEliminated: boolean;
 };
 
 export default function AdminTeamsPage() {
-  const [teams, setTeams] = useState<TeamDetail[]>(mockTeams);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  
+  // RTK Query Hooks
+  const { data: teams = [], isLoading } = useGetAdminTeamsQuery(undefined, {
+      pollingInterval: 30000, // Poll every 30s
+      refetchOnFocus: true,
+      refetchOnMountOrArgChange: true
+  });
+  const [createTeam] = useCreateTeamMutation();
+  const [updateTeamStatus] = useUpdateTeamStatusMutation();
 
   const selectedTeam = selectedTeamId
-    ? teams.find((t) => t.id === selectedTeamId)
+    ? teams.find((t: any) => t.id === selectedTeamId)
     : null;
 
-  const handleScoreChange = (teamId: string, value: string) => {
-    const num = value === "" ? null : Number(value);
-    if (Number.isNaN(num) && value !== "") return;
-    setTeams((prev) =>
-      prev.map((t) =>
-        t.id === teamId ? { ...t, score: num ?? null } : t
-      )
-    );
+  const handleUpdateTeamStatus = async (teamId: string, updates: any) => {
+      try {
+          await updateTeamStatus({ id: teamId, updates }).unwrap();
+          toast.success("Team status updated");
+          setSelectedTeamId(null);
+      } catch (e) {
+          console.error(e);
+          toast.error("Error updating team");
+      }
   };
 
   const handleLockSubmission = (teamId: string) => {
-    // TODO: useLockTeamSubmissionMutation(teamId)
-    setTeams((prev) =>
-      prev.map((t) =>
-        t.id === teamId ? { ...t, isLocked: true, submissionStatus: "locked" as const } : t
-      )
-    );
-    setSelectedTeamId(null);
+      handleUpdateTeamStatus(teamId, { is_locked: true });
   };
 
   const handleShortlist = (teamId: string) => {
-    // TODO: useShortlistTeamMutation(teamId)
-    setTeams((prev) =>
-      prev.map((t) =>
-        t.id === teamId ? { ...t, isShortlisted: true } : t
-      )
-    );
-    setSelectedTeamId(null);
+      handleUpdateTeamStatus(teamId, { is_shortlisted: true });
   };
 
   const handleEliminate = (teamId: string) => {
-    // TODO: API to mark team as eliminated / remove from next round
-    setTeams((prev) =>
-      prev.map((t) =>
-        t.id === teamId ? { ...t, isShortlisted: false } : t
-      )
-    );
-    setSelectedTeamId(null);
+      handleUpdateTeamStatus(teamId, { is_eliminated: true });
   };
 
-  const submissionStatusVariant = (
-    status: TeamDetail["submissionStatus"]
-  ): "default" | "secondary" | "outline" | "destructive" => {
+  // Create Team Logic
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamEmail, setNewTeamEmail] = useState("");
+  const [newTeamTrack, setNewTeamTrack] = useState("");
+
+  const handleCreateTeam = async () => {
+    try {
+        await createTeam({ 
+            name: newTeamName, 
+            email: newTeamEmail,
+            track: newTeamTrack 
+        }).unwrap();
+        
+        toast.success("Team created successfully");
+        setCreateOpen(false);
+        setNewTeamName("");
+        setNewTeamEmail("");
+        setNewTeamTrack("");
+    } catch (error) {
+        console.error("Error creating team:", error);
+        toast.error("Error creating team");
+    }
+  };
+
+  const submissionStatusVariant = (status: string) => {
     switch (status) {
-      case "submitted":
-        return "default";
-      case "pending":
-        return "secondary";
-      case "locked":
-        return "outline";
-      default:
-        return "secondary";
+      case "eliminated": return "destructive";
+      case "shortlisted": return "default";
+      case "submitted": return "default";
+      case "pending": return "secondary";
+      case "locked": return "outline";
+      default: return "secondary";
     }
   };
 
@@ -117,7 +144,61 @@ export default function AdminTeamsPage() {
           View and edit team details. Select a team to lock submissions,
           shortlist, or eliminate.
         </p>
+        <div className="mt-4">
+            <Button onClick={() => setCreateOpen(true)} className="gap-2">
+                <Plus className="size-4" /> Create Team
+            </Button>
+        </div>
       </header>
+    
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Team</DialogTitle>
+                <DialogDescription>
+                  Enter the team name and track.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Team Name</Label>
+                  <Input
+                    id="name"
+                    value={newTeamName}
+                    onChange={(e) => setNewTeamName(e.target.value)}
+                    placeholder="e.g. CodeWizards"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Leader Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newTeamEmail}
+                    onChange={(e) => setNewTeamEmail(e.target.value)}
+                    placeholder="leader@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="track">Track</Label>
+                  <Input
+                    id="track"
+                    value={newTeamTrack}
+                    onChange={(e) => setNewTeamTrack(e.target.value)}
+                    placeholder="e.g. AI/ML"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateTeam} disabled={!newTeamName || !newTeamEmail}>
+                  Create Team
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
       <Card
         className={cn(
@@ -144,88 +225,88 @@ export default function AdminTeamsPage() {
                   <TableHead className="font-semibold">Track</TableHead>
                   <TableHead className="font-semibold">Current round</TableHead>
                   <TableHead className="font-semibold">Score</TableHead>
-                  <TableHead className="font-semibold">Submission status</TableHead>
+                  <TableHead className="font-semibold">Status</TableHead>
                   <TableHead className="w-12 font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {teams.map((team) => (
-                  <TableRow
-                    key={team.id}
-                    className={cn(
-                      "cursor-pointer border-border/50 transition-colors",
-                      selectedTeamId === team.id && "bg-muted/50"
-                    )}
-                    data-state={selectedTeamId === team.id ? "selected" : undefined}
-                    onClick={() =>
-                      setSelectedTeamId((id) => (id === team.id ? null : team.id))
-                    }
-                  >
-                    <TableCell className="font-medium">{team.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {team.track ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {team.currentRoundName ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={team.score ?? ""}
-                        onChange={(e) =>
-                          handleScoreChange(team.id, e.target.value)
+                {isLoading ? (
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center py-4">Loading teams...</TableCell>
+                    </TableRow>
+                ) : (
+                    teams.map((team: any) => (
+                    <TableRow
+                        key={team.id}
+                        className={cn(
+                        "cursor-pointer border-border/50 transition-colors",
+                        selectedTeamId === team.id && "bg-muted/50"
+                        )}
+                        data-state={selectedTeamId === team.id ? "selected" : undefined}
+                        onClick={() =>
+                        setSelectedTeamId((id) => (id === team.id ? null : team.id))
                         }
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-8 w-20 rounded-lg border-border/50 bg-background/80 text-center tabular-nums"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={submissionStatusVariant(team.submissionStatus)}>
-                        {team.submissionStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 rounded-lg"
-                            aria-label="Team actions"
-                          >
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                          <DropdownMenuItem
-                            onClick={() => handleLockSubmission(team.id)}
-                            disabled={team.isLocked}
-                            className="gap-2"
-                          >
-                            <Lock className="size-4" />
-                            Lock submissions
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleShortlist(team.id)}
-                            className="gap-2"
-                          >
-                            <Trophy className="size-4" />
-                            Shortlist
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleEliminate(team.id)}
-                            className="gap-2 text-destructive focus:text-destructive"
-                          >
-                            <XCircle className="size-4" />
-                            Eliminate
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    >
+                        <TableCell className="font-medium">
+                            <Link href={`/admin/teams/${team.id}`} className="hover:underline text-blue-400">
+                                {team.name}
+                            </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                        {team.track ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                        {team.currentRoundName ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                        {team.score ?? "N/A"}
+                        </TableCell>
+                        <TableCell>
+                        <Badge variant={submissionStatusVariant(team.submissionStatus)}>
+                            {team.submissionStatus}
+                        </Badge>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 rounded-lg"
+                                aria-label="Team actions"
+                            >
+                                <MoreHorizontal className="size-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl">
+                            <DropdownMenuItem
+                                onClick={() => handleLockSubmission(team.id)}
+                                disabled={team.isLocked}
+                                className="gap-2"
+                            >
+                                <Lock className="size-4" />
+                                Lock submissions
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleShortlist(team.id)}
+                                className="gap-2"
+                            >
+                                <Trophy className="size-4" />
+                                Shortlist
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => handleEliminate(team.id)}
+                                className="gap-2 text-destructive focus:text-destructive"
+                            >
+                                <XCircle className="size-4" />
+                                Eliminate
+                            </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    ))
+                )}
               </TableBody>
             </Table>
           </div>

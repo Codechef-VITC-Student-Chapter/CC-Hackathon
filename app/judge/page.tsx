@@ -1,51 +1,56 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useGetJudgeAssignedTeamsQuery } from "@/lib/redux/api/judgeApi";
+import { Loader2 } from "lucide-react";
 
-// Define types
+// Define locally if not shared, or import from types if available
 type TeamAssignment = {
-  id: string;
-  name: string;
+  team_id: string;
+  team_name: string;
   status: 'pending' | 'scored';
-  roundId: string;
+  round_id?: string;
   score?: number;
-  lastUpdated: string;
 };
 
 export default function JudgeHomePage() {
   const router = useRouter();
   
-  // Mock assigned teams - would come from API
-  const [assignedTeams] = useState<TeamAssignment[]>([
-    { 
-      id: "team-alpha", 
-      name: "Team Alpha", 
-      status: "pending", 
-      roundId: "round-2",
-      lastUpdated: "5m ago" 
-    },
-    { 
-      id: "team-beta", 
-      name: "Team Beta", 
-      status: "scored", 
-      roundId: "round-2",
-      score: 85,
-      lastUpdated: "1h ago" 
-    },
-  ]);
+  // Fetch assigned teams
+  // We pass undefined to let the API use the default active round logic
+  const { data: assignedTeams = [], isLoading, error, isError } = useGetJudgeAssignedTeamsQuery();
 
-  const currentRound = "round-2";
-  const pendingCount = assignedTeams.filter(t => t.status === 'pending').length;
+  // Helper to calculate pending count
+  const pendingCount = assignedTeams.filter((t: any) => t.status === 'pending').length;
 
   // Handle team click - navigate to evaluation page
-  const handleTeamClick = (team: TeamAssignment) => {
-    router.push(`/judge/${team.roundId}?team_id=${team.id}`);
+  // The API response might not have round_id if it's inferred from active round
+  // but for navigation we need roundId. 
+  // Ideally ID should be returned. If not, we might need to know the active round separately.
+  // However, looking at the API, it returns { team_id, team_name, status }.
+  // It doesn't return round_id in the *mapped* result? 
+  // Let's check api/judge/assigned-teams/route.ts again.
+  // It returns: { team_id, team_name, status }. 
+  // So we don't know the roundId from the response!
+  // BUT the page we just refactored `app/judge/[round]/page.tsx` needs `round` param.
+  
+  // Current assumption: The round is "round-2" or whatever is active.
+  // We should likely fetch the active round ID or have the API return it.
+  // For now, let's assume valid data or fallback. 
+  // Actually, I should probably update the API to return round_id.
+  
+  const handleTeamClick = (teamId: string) => {
+      // If we don't have round ID, we can't route correctly unless we know the active round.
+      // But let's assume the API context or a default.
+      // The previous code had: roundId: t.round_id || "active"
+      // Let's use "active" as a placeholder which the details page might need to handle or 
+      // we update the API.
+      
+      router.push(`/judge/active?team_id=${teamId}`);
   };
 
   // Get status badge styling
-  const getStatusBadge = (status: TeamAssignment['status'], score?: number) => {
+  const getStatusBadge = (status: string, score?: number) => {
     if (status === 'scored') {
       return {
         bg: 'bg-emerald-500/10',
@@ -79,6 +84,25 @@ export default function JudgeHomePage() {
     const colors = ['cyan', 'violet', 'fuchsia', 'emerald'];
     return colors[index % colors.length];
   };
+
+  if (isLoading) {
+      return (
+          <main className="relative min-h-screen w-full flex items-center justify-center bg-slate-950">
+              <Loader2 className="animate-spin h-10 w-10 text-cyan-500" />
+          </main>
+      );
+  }
+
+  if (isError) {
+      return (
+          <main className="relative min-h-screen w-full flex items-center justify-center bg-slate-950 text-white">
+              <div className="text-center">
+                  <h2 className="text-xl font-bold text-red-500">Error loading teams</h2>
+                  <p className="text-slate-400 mt-2">{(error as any)?.data?.error || "Unknown error"}</p>
+              </div>
+          </main>
+      );
+  }
 
   return (
     <main className="relative min-h-screen w-full overflow-hidden bg-slate-950">
@@ -128,50 +152,54 @@ export default function JudgeHomePage() {
                   </div>
                 </div>
                 <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-mono text-cyan-400 border border-cyan-500/20">
-                  {currentRound.toUpperCase().replace('-', ' ')}
+                  ACTIVE ROUND
                 </span>
               </div>
 
               {/* Teams List */}
               <div className="space-y-3">
-                {assignedTeams.map((team, index) => {
-                  const statusBadge = getStatusBadge(team.status, team.score);
-                  const color = getTeamColor(index);
-                  
-                  return (
-                    <div 
-                      key={team.id}
-                      onClick={() => handleTeamClick(team)}
-                      className={`group/card relative overflow-hidden rounded-xl border border-slate-700 bg-slate-800/50 p-5 transition-all duration-300 ${statusBadge.hoverBorder} hover:bg-slate-800/70 hover:shadow-lg ${statusBadge.hoverShadow} cursor-pointer`}
-                    >
-                      <div className={`absolute top-0 left-0 h-full w-1 bg-gradient-to-b ${statusBadge.accentFrom} to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300`} />
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`flex h-12 w-12 items-center justify-center rounded-lg bg-${color}-500/10 border border-${color}-500/20 group-hover/card:bg-${color}-500/20 group-hover/card:border-${color}-500/40 transition-all duration-300`}>
-                            <span className={`text-lg font-bold text-${color}-400`}>{team.name.charAt(5)}</span>
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-white text-base">{team.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`inline-flex items-center gap-1.5 rounded-full ${statusBadge.bg} px-2.5 py-1 text-xs font-mono ${statusBadge.text} border ${statusBadge.border}`}>
-                                <div className={`h-1.5 w-1.5 rounded-full ${statusBadge.dot} ${statusBadge.pulse ? 'animate-pulse' : ''}`} />
-                                {statusBadge.label}
-                              </span>
-                              <span className="text-xs font-mono text-slate-500">{statusBadge.description}</span>
-                            </div>
-                          </div>
-                        </div>
+                {assignedTeams.length === 0 ? (
+                    <p className="text-slate-500 text-center py-4">No teams assigned yet.</p>
+                ) : (
+                    assignedTeams.map((team: any, index: number) => {
+                    const statusBadge = getStatusBadge(team.status, team.score);
+                    const color = getTeamColor(index);
+                    
+                    return (
+                        <div 
+                        key={team.team_id}
+                        onClick={() => handleTeamClick(team.team_id)}
+                        className={`group/card relative overflow-hidden rounded-xl border border-slate-700 bg-slate-800/50 p-5 transition-all duration-300 ${statusBadge.hoverBorder} hover:bg-slate-800/70 hover:shadow-lg ${statusBadge.hoverShadow} cursor-pointer`}
+                        >
+                        <div className={`absolute top-0 left-0 h-full w-1 bg-gradient-to-b ${statusBadge.accentFrom} to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300`} />
                         
-                        <button className={`flex items-center justify-center h-9 w-9 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 transition-all duration-300 hover:border-${color}-500/50 hover:bg-slate-700/50 hover:text-${color}-400`}>
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                            <div className={`flex h-12 w-12 items-center justify-center rounded-lg bg-${color}-500/10 border border-${color}-500/20 group-hover/card:bg-${color}-500/20 group-hover/card:border-${color}-500/40 transition-all duration-300`}>
+                                <span className={`text-lg font-bold text-${color}-400`}>{team.team_name.charAt(0)}</span>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-white text-base">{team.team_name}</h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                <span className={`inline-flex items-center gap-1.5 rounded-full ${statusBadge.bg} px-2.5 py-1 text-xs font-mono ${statusBadge.text} border ${statusBadge.border}`}>
+                                    <div className={`h-1.5 w-1.5 rounded-full ${statusBadge.dot} ${statusBadge.pulse ? 'animate-pulse' : ''}`} />
+                                    {statusBadge.label}
+                                </span>
+                                <span className="text-xs font-mono text-slate-500">{statusBadge.description}</span>
+                                </div>
+                            </div>
+                            </div>
+                            
+                            <button className={`flex items-center justify-center h-9 w-9 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 transition-all duration-300 hover:border-${color}-500/50 hover:bg-slate-700/50 hover:text-${color}-400`}>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            </button>
+                        </div>
+                        </div>
+                    );
+                    })
+                )}
               </div>
 
               {/* Footer */}
@@ -181,7 +209,8 @@ export default function JudgeHomePage() {
                   <span>{pendingCount > 0 ? `${pendingCount} pending evaluation${pendingCount > 1 ? 's' : ''}` : 'All evaluations complete'}</span>
                 </div>
                 <div className="text-xs font-mono text-slate-500">
-                  Last updated: {assignedTeams[0]?.lastUpdated || 'Just now'}
+                  {/* Mock logic for 'Last updated' as it's not in API */}
+                  Last updated: Just now
                 </div>
               </div>
             </div>

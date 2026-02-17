@@ -17,26 +17,41 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, ChevronRight, ListOrdered } from "lucide-react";
-import { mockRounds } from "@/lib/mock/adminMockData";
 import { cn } from "@/lib/utils";
-
-// Define round type
-type Round = {
-  id: string;
-  name: string;
-  status: 'completed' | 'active' | 'pending';
-  submissions: number;
-};
+import { useGetAdminRoundsQuery, useCreateRoundMutation } from "@/lib/redux/api/adminApi";
+import { toast } from "sonner";
 
 export default function AdminRoundsPage() {
   const [createOpen, setCreateOpen] = useState(false);
-  const [newRoundName, setNewRoundName] = useState("");
+  const [roundNumber, setRoundNumber] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
 
-  const handleCreateRound = () => {
-    // TODO: useCreateRoundMutation() when backend is ready
-    console.log("Create round", newRoundName);
-    setNewRoundName("");
-    setCreateOpen(false);
+  const { data: rounds = [], isLoading } = useGetAdminRoundsQuery();
+  const [createRound] = useCreateRoundMutation();
+
+  const handleCreateRound = async () => {
+    if (!roundNumber) return;
+
+    try {
+      await createRound({
+        round_number: parseInt(roundNumber),
+        instructions,
+        start_time: startTime ? new Date(startTime).toISOString() : null,
+        end_time: endTime ? new Date(endTime).toISOString() : null,
+      }).unwrap();
+
+      toast.success("Round created successfully");
+      setCreateOpen(false);
+      setRoundNumber("");
+      setInstructions("");
+      setStartTime("");
+      setEndTime("");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Failed to create round: ${e?.data?.error || "Unknown error"}`);
+    }
   };
 
   return (
@@ -72,20 +87,52 @@ export default function AdminRoundsPage() {
               <DialogHeader>
                 <DialogTitle>Create new round</DialogTitle>
                 <DialogDescription>
-                  Add a new round to the event. You can set subtasks and
-                  controls from the round detail page.
+                  Enter the round number and optional instructions.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="round-name">Round name</Label>
+                  <Label htmlFor="round-number">Round Number</Label>
                   <Input
-                    id="round-name"
-                    placeholder="e.g. Round 2"
-                    value={newRoundName}
-                    onChange={(e) => setNewRoundName(e.target.value)}
+                    id="round-number"
+                    type="number"
+                    placeholder="e.g. 2"
+                    value={roundNumber}
+                    onChange={(e) => setRoundNumber(e.target.value)}
                     className="rounded-lg"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="instructions">Instructions (Optional)</Label>
+                  <Input
+                    id="instructions"
+                    placeholder="Brief instructions..."
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    className="rounded-lg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="start-time">Start Time</Label>
+                    <Input
+                      id="start-time"
+                      type="datetime-local"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="rounded-lg block"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="end-time">End Time</Label>
+                    <Input
+                      id="end-time"
+                      type="datetime-local"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="rounded-lg block"
+                    />
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -98,7 +145,7 @@ export default function AdminRoundsPage() {
                 </Button>
                 <Button
                   onClick={handleCreateRound}
-                  disabled={!newRoundName.trim()}
+                  disabled={!roundNumber}
                   className="rounded-xl"
                 >
                   Create
@@ -109,38 +156,44 @@ export default function AdminRoundsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {mockRounds.map((round) => (
-              <Link
-                key={round.id}
-                href={`/admin/round/${round.id}`}
-                className={cn(
-                  "flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 p-4 transition-all",
-                  "hover:border-primary/30 hover:bg-muted/40 hover:shadow-md",
-                  "focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-medium text-foreground">
-                    {round.name ?? `Round ${round.round_number ?? round.id}`}
-                  </span>
-                  <Badge
-                    variant={
-                      round.status === "active"
-                        ? "default"
-                        : round.status === "closed"
-                          ? "secondary"
-                          : "outline"
-                    }
+            {isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading rounds...</p>
+            ) : rounds.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No rounds found. Create one to get started.</p>
+            ) : (
+                rounds.map((round: any) => (
+                  <Link
+                    key={round._id}
+                    href={`/admin/rounds/${round._id}`}
+                    className={cn(
+                      "flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 p-4 transition-all",
+                      "hover:border-primary/30 hover:bg-muted/40 hover:shadow-md",
+                      "focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
+                    )}
                   >
-                    {round.status ?? "draft"}
-                  </Badge>
-                  {round.submission_enabled && (
-                    <Badge variant="secondary">Submissions on</Badge>
-                  )}
-                </div>
-                <ChevronRight className="size-5 text-muted-foreground" />
-              </Link>
-            ))}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="font-medium text-foreground">
+                        {`Round ${round.round_number}`}
+                      </span>
+                      <Badge
+                        variant={
+                          round.is_active
+                            ? "default"
+                            : round.end_time && new Date() > new Date(round.end_time)
+                              ? "secondary" // Passed/Closed
+                              : "outline" // Upcoming/Inactive
+                        }
+                      >
+                         {round.is_active ? "active" : "inactive"}
+                      </Badge>
+                      {round.submission_enabled && (
+                        <Badge variant="secondary">Submissions on</Badge>
+                      )}
+                    </div>
+                    <ChevronRight className="size-5 text-muted-foreground" />
+                  </Link>
+                ))
+            )}
           </div>
         </CardContent>
       </Card>

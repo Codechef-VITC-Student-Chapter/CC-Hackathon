@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { SubtaskSummary } from "./SubtaskCard";
 import SubtaskCard from "./SubtaskCard";
 import SubmissionForm from "./SubmissionForm";
+import { useSelectSubtaskMutation } from "@/lib/redux/api/teamApi";
 
 type Props = {
   initial: SubtaskSummary[];
@@ -24,6 +25,8 @@ export default function RoundInteraction({
     docUrl?: string;
   }>(null);
 
+  const [selectSubtask] = useSelectSubtaskMutation();
+
   const selected = useMemo(
     () => initial.find((s) => s.id === selectedId) ?? null,
     [initial, selectedId]
@@ -35,18 +38,12 @@ export default function RoundInteraction({
     // persist selection server-side
     (async () => {
       try {
-        const res = await fetch("/api/team/selection", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roundId, subtaskId: id }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setSelectedId(id);
-          setLocked(true);
-        } else if (data?.selection) {
+        const data = await selectSubtask({ roundId: roundId!, subtaskId: id }).unwrap();
+        
+        if (data?.selection) {
           setSelectedId(data.selection.subtask_id?.toString() ?? id);
           setLocked(true);
+          window.location.reload();
         }
       } catch (err) {
         console.error(err);

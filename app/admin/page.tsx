@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,36 +20,87 @@ import {
   PlayCircle,
   StopCircle,
   Upload,
+  Loader2,
 } from "lucide-react";
-import { mockDashboard, mockRounds } from "@/lib/mock/adminMockData";
 import { cn } from "@/lib/utils";
+import { 
+  useGetAdminDashboardQuery, 
+  useGetAdminRoundsQuery, 
+  useToggleRoundStatusMutation 
+} from "@/lib/redux/api/adminApi";
+import { toast } from "sonner";
 
 export default function AdminDashboardPage() {
-  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(
-    mockDashboard.currentRoundId
-  );
-  const [submissionToggled, setSubmissionToggled] = useState(
-    mockDashboard.submissionEnabled
-  );
+  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
+  const [submissionToggled, setSubmissionToggled] = useState(false);
 
-  const handleStartRound = () => {
+  // RTK Query Hooks
+  const { data: stats, isLoading: statsLoading } = useGetAdminDashboardQuery();
+  const { data: rounds = [], isLoading: roundsLoading } = useGetAdminRoundsQuery();
+  const [toggleRoundStatus] = useToggleRoundStatusMutation();
+
+  const loading = statsLoading || roundsLoading;
+
+  // Initialize selectedRoundId from stats
+  useEffect(() => {
+    if (stats?.currentRound && !selectedRoundId) {
+       setSelectedRoundId(stats.currentRound.id);
+    }
+  }, [stats, selectedRoundId]);
+
+  // Sync toggle state with selected round
+  useEffect(() => {
+     if (selectedRoundId && rounds.length > 0) {
+        const r = rounds.find((rd: any) => rd._id === selectedRoundId);
+        if (r) setSubmissionToggled(r.submission_enabled ?? false);
+     }
+  }, [selectedRoundId, rounds]);
+
+  const handleStartRound = async () => {
     if (!selectedRoundId) return;
-    // TODO: useStartRoundMutation() when backend is ready
-    console.log("Start round", selectedRoundId);
+    try {
+        await toggleRoundStatus({ id: selectedRoundId, action: 'start' }).unwrap();
+        toast.success("Round started successfully");
+    } catch (e) {
+        console.error(e);
+        toast.error("Failed to start round");
+    }
   };
 
-  const handleStopRound = () => {
+  const handleStopRound = async () => {
     if (!selectedRoundId) return;
-    // TODO: useStopRoundMutation() when backend is ready
-    console.log("Stop round", selectedRoundId);
+    try {
+        await toggleRoundStatus({ id: selectedRoundId, action: 'stop' }).unwrap();
+        toast.success("Round stopped successfully");
+    } catch (e) {
+        console.error(e);
+        toast.error("Failed to stop round");
+    }
   };
 
-  const handleToggleSubmission = (checked: boolean) => {
+  const handleToggleSubmission = async (checked: boolean) => {
+    // Optimistic update
     setSubmissionToggled(checked);
     if (!selectedRoundId) return;
-    // TODO: useToggleRoundSubmissionMutation() when backend is ready
-    console.log("Toggle submission", selectedRoundId, checked);
+    
+    try {
+        await toggleRoundStatus({ id: selectedRoundId, action: 'toggle-submission' }).unwrap();
+        toast.success(`Submissions ${checked ? 'enabled' : 'disabled'}`);
+    } catch (e) {
+        console.error(e);
+        setSubmissionToggled(!checked); // Revert on failure
+        toast.error("Failed to toggle submission");
+    }
   };
+
+  if (loading || !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-lime-500" />
+        <p className="text-muted-foreground animate-pulse">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -78,7 +129,7 @@ export default function AdminDashboardPage() {
         <CardContent>
           <div className="flex flex-wrap items-baseline gap-4">
             <span className="text-3xl font-bold tabular-nums text-foreground">
-              {mockDashboard.totalTeams}
+              {stats.totalTeams}
             </span>
             <span className="text-muted-foreground">total teams</span>
           </div>
@@ -100,14 +151,14 @@ export default function AdminDashboardPage() {
             <Clock className="size-5 text-muted-foreground" />
             Current round status
           </CardTitle>
-          {mockDashboard.currentRound && (
+          {stats.currentRound && (
             <Badge
               variant={
-                mockDashboard.roundStatus === "active" ? "default" : "secondary"
+                stats.roundStatus === "active" ? "default" : "secondary"
               }
               className="mt-2 w-fit"
             >
-              {mockDashboard.currentRound.name}
+              {stats.currentRound.name}
             </Badge>
           )}
         </CardHeader>
@@ -119,7 +170,7 @@ export default function AdminDashboardPage() {
                 <span className="text-sm font-medium">Submissions</span>
               </div>
               <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {mockDashboard.submissionsCount}
+                {stats.submissionsCount}
               </p>
             </div>
             <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
@@ -128,7 +179,7 @@ export default function AdminDashboardPage() {
                 <span className="text-sm font-medium">Pending evaluation</span>
               </div>
               <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {mockDashboard.pendingEvaluationCount}
+                {stats.pendingEvaluationCount}
               </p>
             </div>
           </div>
@@ -165,9 +216,9 @@ export default function AdminDashboardPage() {
                   <SelectValue placeholder="Select a round" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockRounds.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name ?? `Round ${r.round_number ?? r.id}`}
+                  {rounds.map((r: any) => (
+                    <SelectItem key={r._id} value={r._id}>
+                      {`Round ${r.round_number} ${r.is_active ? '(Active)' : ''}`}
                     </SelectItem>
                   ))}
                 </SelectContent>

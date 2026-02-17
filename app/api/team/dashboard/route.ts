@@ -48,12 +48,13 @@ export async function GET(request: NextRequest) {
                     end_time: activeRound.end_time,
                     is_active: activeRound.is_active,
                     submission_enabled: activeRound.submission_enabled,
+                    instructions: activeRound.instructions,
                 }
                 : null,
             rounds_accessible: accessibleRoundIds,
         });
 
-    // Caatch any errors
+        // Caatch any errors
     } catch (err: any) {
         if (err.status && err.error) {
             return NextResponse.json(

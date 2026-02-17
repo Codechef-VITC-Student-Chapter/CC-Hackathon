@@ -1,33 +1,33 @@
-"use server";
-
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
-import Countdown from "../../../components/team/Countdown";
+"use client";
+import React from "react";
+import CountDown from "../../../components/team/Countdown";
 import InstructionCard from "../../../components/team/InstructionCard";
-import { connectDB } from "@/config/db";
-import User from "@/models/User";
-import Team from "@/models/Team";
-import Round from "@/models/Round";
+import Link from "next/link";
+import { useGetTeamDashboardQuery } from "@/lib/redux/api/teamApi";
+import { Loader2 } from "lucide-react";
 
-type Props = {};
+export default function TeamDashboardPage() {
+  const { data: dashboardData, isLoading } = useGetTeamDashboardQuery();
 
-export default async function Page({}: Props) {
-  await connectDB();
+  if (isLoading) {
+      return (
+          <div className="flex items-center justify-center min-h-screen bg-neutral-950">
+              <Loader2 className="h-8 w-8 animate-spin text-lime-500" />
+          </div>
+      );
+  }
 
-  const session = await getServerSession(authOptions);
-
-  const email = session?.user?.email ?? null;
-
-  const user = email ? await User.findOne({ email }).lean() : null;
-  const team = user?.team_id ? await Team.findById(user.team_id).lean() : null;
-
-  const activeRound = await Round.findOne({ is_active: true }).lean();
-
-  const teamName = team?.team_name ?? "Unknown Team";
-  const track = team?.track ?? "-";
+  // Fallback if data is missing or error
+  const teamName = dashboardData?.team_name ?? "Unknown Team";
+  const track = dashboardData?.track ?? "-";
+  // The API returns 'current_round', not 'activeRound'
+  const activeRound = dashboardData?.current_round;
+  
+  // Use current time + 1h if no end time, or data from API
   const endTime = activeRound?.end_time
     ? new Date(activeRound.end_time).toISOString()
     : new Date(Date.now() + 1000 * 60 * 60).toISOString();
+
   const currentRound = activeRound;
 
   return (
@@ -42,7 +42,7 @@ export default async function Page({}: Props) {
           </div>
 
           <div className="mt-3 md:mt-0">
-            <Countdown endTime={endTime} />
+            <CountDown endTime={endTime} />
           </div>
         </header>
 
@@ -50,6 +50,7 @@ export default async function Page({}: Props) {
           <div className="md:col-span-2">
             <InstructionCard
               status={currentRound?.is_active ? "ready" : "locked"}
+              instructions={currentRound?.instructions}
             />
             <div className="mt-3 text-sm text-gray-300">
               {currentRound?.round_number
@@ -57,36 +58,45 @@ export default async function Page({}: Props) {
                 : "No active round"}{" "}
               {currentRound?.is_active ? "Active now" : ""}
             </div>
-            <div className="mt-4">
-              <a
+            <div className="mt-4 flex gap-3">
+              <Link
                 href="/team/rounds"
-                className="inline-block bg-lime-500 text-black px-4 py-2 rounded-md"
+                className="inline-block bg-neutral-800 text-white border border-neutral-700 px-4 py-2 rounded-md hover:bg-neutral-700 transition-colors"
               >
                 View Rounds
-              </a>
+              </Link>
+              {currentRound?.is_active && (
+                <Link
+                  href={`/team/rounds/${currentRound._id}`}
+                  className="inline-block bg-lime-500 text-black border border-lime-600 px-4 py-2 rounded-md font-medium hover:bg-lime-400 transition-colors shadow-[0_0_15px_rgba(132,204,22,0.3)]"
+                >
+                  Submit Now
+                </Link>
+              )}
             </div>
           </div>
 
           <aside className="hidden md:block">
+            {/* Status Panel - could be a separate component */}
             <div className="rounded-lg bg-neutral-900 p-4 border border-neutral-800">
               <div className="text-xs text-gray-400">Current Round</div>
               <div className="font-semibold text-white mt-1">
                 {currentRound ? `Round ${currentRound.round_number}` : "—"}
               </div>
               <div className="text-sm mt-2">
-                <span className="text-gray-300">Status:- </span>
+                <span className="text-gray-300">Status: </span>
                 <span
-                  className={`px-2 py-1 rounded ${
+                  className={`px-2 py-1 rounded ml-2 ${
                     currentRound?.is_active
                       ? "bg-lime-600 text-black"
                       : "bg-gray-700 text-gray-200"
                   }`}
                 >
                   {currentRound?.is_active
-                    ? "active"
+                    ? "Active"
                     : currentRound
-                    ? "closed"
-                    : "none"}
+                    ? "Closed"
+                    : "Inactive"}
                 </span>
               </div>
             </div>
