@@ -12,7 +12,6 @@ import { ensureAbsoluteUrl } from "@/lib/utils";
 export default function TeamSubmissionsPage() {
   const { data: submissions = [], isLoading: loading } =
     useGetTeamSubmissionsQuery();
-  console.log("Fetched submissions:", submissions); // Debug log
 
   // Set breadcrumbs for team submissions
   useEffect(() => {
