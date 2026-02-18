@@ -75,7 +75,6 @@ export default function JudgeRoundDetailsPage() {
   // Initialize evaluations from teams data
   useEffect(() => {
     if (teamsData && Array.isArray(teamsData)) {
-      console.log("Teams data for evaluations:", teamsData);
       const evaluationsList: TeamEvaluation[] = teamsData.map((team: any) => ({
         teamId: team.team_id,
         teamName: team.team_name,
@@ -87,7 +86,6 @@ export default function JudgeRoundDetailsPage() {
         submission: team.submission,
       }));
       setEvaluations(evaluationsList);
-      console.log(evaluationsList);
     }
   }, [teamsData]);
 
@@ -131,10 +129,10 @@ export default function JudgeRoundDetailsPage() {
   };
 
   const handleScoreChange = (value: string) => {
-    // Allow only 0-10 range
+    // Allow only 0-20 range
     if (
       value === "" ||
-      (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 10)
+      (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 20)
     ) {
       setDialogScore(value);
     }
@@ -144,8 +142,8 @@ export default function JudgeRoundDetailsPage() {
     if (!selectedTeamId) return;
 
     const score = dialogScore === "" ? 0 : parseInt(dialogScore);
-    if (score < 0 || score > 10) {
-      toast.error("Please enter a valid score (0-10)");
+    if (score < 0 || score > 20) {
+      toast.error("Please enter a valid score (0-20)");
       return;
     }
 
@@ -287,7 +285,7 @@ export default function JudgeRoundDetailsPage() {
                     </TableCell>
                     <TableCell className="font-medium">
                       {evaluation.score !== null
-                        ? `${evaluation.score}/10`
+                        ? `${evaluation.score}/20`
                         : "-"}
                     </TableCell>
                     <TableCell className="text-right">
@@ -436,13 +434,13 @@ export default function JudgeRoundDetailsPage() {
               <label className="text-sm font-medium">
                 Score <span className="text-red-500">*</span>
                 <span className="text-xs text-muted-foreground ml-2">
-                  (0-10)
+                  (0-20)
                 </span>
               </label>
               <Input
                 type="number"
                 min="0"
-                max="10"
+                max="20"
                 value={dialogScore}
                 onChange={(e) => handleScoreChange(e.target.value)}
                 placeholder="Enter score"

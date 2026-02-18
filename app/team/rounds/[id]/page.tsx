@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, CheckCircle, AlertCircle, Timer } from "lucide-react";
 import { ensureAbsoluteUrl } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function Page() {
   const params = useParams();
@@ -553,8 +554,13 @@ export default function Page() {
                       roundId: id,
                       subtaskId: selectedSubtaskId,
                     }).unwrap();
-                  } catch (error) {
+                    toast.success("Subtask selected successfully!");
+                  } catch (error: any) {
                     console.error("Failed to select subtask:", error);
+                    toast.error(
+                      "Failed to select subtask: " +
+                        (error?.data?.error || "Unknown error"),
+                    );
                   }
                 }}
                 disabled={isSelecting}
