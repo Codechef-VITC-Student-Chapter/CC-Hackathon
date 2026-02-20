@@ -27,6 +27,8 @@ export const roundSchema = z.object({
 
 export const subtaskSchema = z.object({
     round_id: z.string().min(1, "Round ID is required"),
-    description: z.string().min(10, "Description must be at least 10 characters"),
+    title: z.string().min(1, "Title is required"),
+    track: z.string().optional(),
+    description: z.string(),
     points: z.number().int().nonnegative("Points cannot be negative").optional(),
 });
