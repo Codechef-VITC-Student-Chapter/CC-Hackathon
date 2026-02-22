@@ -59,17 +59,6 @@ async function seedDatabase(): Promise<ISeedResult> {
 
     console.log("✓ Cleared existing data");
 
-    // Drop old Score indexes (from before model update)
-    try {
-      await Score.collection.dropIndex("judge_id_1_team_id_1_round_id_1");
-      console.log("✓ Dropped old Score index");
-    } catch (error: any) {
-      if (error.code !== 27) {
-        // 27 = IndexNotFound, ignore this error
-        console.log("Note: Old index already removed or doesn't exist");
-      }
-    }
-
     // Create Users - Admin
     const adminUser = await User.create({
       email: SEED_CONFIG.admin.email,

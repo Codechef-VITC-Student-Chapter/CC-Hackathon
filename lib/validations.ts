@@ -4,8 +4,9 @@ export const scoreSchema = z.object({
   score: z
     .number()
     .min(0, "Score must be at least 0")
-    .max(20, "Score cannot exceed 20"),
+    .max(100, "Score cannot exceed 100"),
   remarks: z.string().optional(),
+  status: z.enum(["pending", "scored"]).optional(),
 });
 
 export const submissionSchema = z.object({
@@ -34,6 +35,7 @@ export const roundSchema = z.object({
 export const subtaskSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  statement: z.string().optional(),
   track_id: z.string().min(1, "Track ID is required"),
   is_active: z.boolean().optional(),
 });
@@ -42,6 +44,16 @@ export const teamSchema = z.object({
   team_name: z.string().min(2, "Team name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   track_id: z.string().min(1, "Track ID is required"),
+});
+
+export const batchTeamSchema = z.object({
+  teams: z.array(
+    z.object({
+      team_name: z.string().min(2, "Team name must be at least 2 characters"),
+      email: z.string().email("Invalid email address"),
+      track_id: z.string().min(1, "Track ID is required"),
+    })
+  ).min(1, "At least one team is required"),
 });
 
 export const trackSchema = z.object({

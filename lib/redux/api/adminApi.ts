@@ -1,5 +1,5 @@
 import { baseApi } from "./baseApi";
-import { Round, Team, AdminDashboard, TeamDetail } from "./types";
+import { Round, Team, AdminDashboard, TeamDetail, Subtask, Judge } from "./types";
 
 export const adminApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -17,7 +17,7 @@ export const adminApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Round"],
+      invalidatesTags: ["Round", "AdminDashboard"],
     }),
     getRoundDetails: builder.query<Round, string>({
       query: (id) => `/admin/rounds/${id}`,
@@ -26,31 +26,21 @@ export const adminApi = baseApi.injectEndpoints({
     updateRound: builder.mutation<Round, { id: string; body: Partial<Round> }>({
       query: ({ id, body }) => ({
         url: `/admin/rounds/${id}`,
-        method: "PUT",
+        method: "PATCH",
         body,
       }),
       invalidatesTags: (result, error, { id }) => [
         { type: "Round", id },
         "Round",
+        "AdminDashboard",
       ],
-    }),
-    toggleRoundStatus: builder.mutation<
-      any,
-      { id: string; action: "start" | "stop" | "toggle-submission" }
-    >({
-      query: ({ id, action }) => ({
-        url: `/admin/rounds/${id}`,
-        method: "PATCH",
-        body: { action },
-      }),
-      invalidatesTags: ["Round", "AdminDashboard"],
     }),
     deleteRound: builder.mutation<void, string>({
       query: (id) => ({
         url: `/admin/rounds/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Round"],
+      invalidatesTags: ["Round", "AdminDashboard"],
     }),
     getRoundTeams: builder.query<
       { teams: any[]; allowedTeamIds: string[] },
@@ -74,29 +64,10 @@ export const adminApi = baseApi.injectEndpoints({
         { type: "Round", id: roundId },
       ],
     }),
-    getRoundTeamSubtasks: builder.query<
-      { assignments: { teamId: string; subtaskIds: string[] }[] },
-      string
-    >({
-      query: (roundId) => `/admin/rounds/${roundId}/team-subtasks`,
+    getRoundSubtasks: builder.query<Subtask[], string>({
+      query: (roundId) => `/admin/rounds/${roundId}/subtasks`,
       providesTags: (result, error, roundId) => [
-        { type: "Round", id: `subtasks_${roundId}` },
-      ],
-    }),
-    updateRoundTeamSubtasks: builder.mutation<
-      { message: string },
-      {
-        roundId: string;
-        assignments: { teamId: string; subtaskIds: string[] }[];
-      }
-    >({
-      query: ({ roundId, assignments }) => ({
-        url: `/admin/rounds/${roundId}/team-subtasks`,
-        method: "POST",
-        body: { assignments },
-      }),
-      invalidatesTags: (result, error, { roundId }) => [
-        { type: "Round", id: `subtasks_${roundId}` },
+        { type: "Subtask", id: `round_${roundId}` },
       ],
     }),
     getAdminTeams: builder.query<TeamDetail[], void>({
@@ -111,27 +82,48 @@ export const adminApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Team", "AdminDashboard"],
     }),
+    batchCreateTeams: builder.mutation<
+      any,
+      { teams: Array<{ team_name: string; email: string; track_id: string }> }
+    >({
+      query: (body) => ({
+        url: "/admin/teams/batch",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Team", "AdminDashboard"],
+    }),
     updateTeamStatus: builder.mutation<Team, { id: string; updates: any }>({
       query: ({ id, updates }) => ({
         url: `/admin/teams/${id}`,
         method: "PATCH",
         body: updates,
       }),
-      invalidatesTags: ["Team"],
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Team", id },
+        "Team",
+        "AdminDashboard",
+      ],
+    }),
+    bulkUpdateTeams: builder.mutation<any, { updates: Array<{ teamId: string; updates: any }> }>({
+      query: (body) => ({
+        url: "/admin/teams/bulk",
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["Team", "AdminDashboard"],
     }),
     getTeamDetails: builder.query<any, string>({
       // Using any for now as details structure is complex
       query: (id) => `/admin/teams/${id}/details`,
       providesTags: (result, error, id) => [{ type: "Team", id }],
     }),
-    getSubtasks: builder.query<any[], string>({
-      query: (roundId) => `/admin/subtasks?round_id=${roundId}`,
-      providesTags: (result, error, roundId) => [
-        { type: "Round", id: roundId },
-      ],
+    getAllSubtasks: builder.query<Subtask[], void>({
+      query: () => "/admin/subtasks",
+      providesTags: ["Subtask"],
     }),
     createSubtask: builder.mutation<
-      any,
+      Subtask,
       { round_id: string; title: string; description?: string; track?: string }
     >({
       query: (body) => ({
@@ -140,17 +132,19 @@ export const adminApi = baseApi.injectEndpoints({
         body,
       }),
       invalidatesTags: (result, error, { round_id }) => [
-        { type: "Round", id: round_id },
+        { type: "Subtask", id: `round_${round_id}` },
+        "Subtask",
       ],
     }),
-    updateSubtask: builder.mutation<any, { id: string; body: any }>({
+    updateSubtask: builder.mutation<Subtask, { id: string; body: Partial<Subtask> }>({
       query: ({ id, body }) => ({
         url: `/admin/subtasks/${id}`,
-        method: "PUT",
+        method: "PATCH",
         body,
       }),
-      invalidatesTags: (result, error, { body }) => [
-        { type: "Round", id: body?.round_id },
+      invalidatesTags: (result, error, { id, body }) => [
+        { type: "Subtask", id },
+        "Subtask",
       ],
     }),
     deleteSubtask: builder.mutation<void, string>({
@@ -158,57 +152,63 @@ export const adminApi = baseApi.injectEndpoints({
         url: `/admin/subtasks/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Round"],
+      invalidatesTags: ["Subtask", "Round"],
     }),
-    getJudges: builder.query<any[], void>({
+    getJudges: builder.query<Judge[], void>({
       query: () => "/admin/judges",
       providesTags: ["Judge"],
     }),
-    createJudge: builder.mutation<any, Partial<any>>({
+    getJudgeDetails: builder.query<Judge, string>({
+      query: (id) => `/admin/judges/${id}`,
+      providesTags: (result, error, id) => [{ type: "Judge", id }],
+    }),
+    createJudge: builder.mutation<Judge, Partial<Judge>>({
       query: (body) => ({
         url: "/admin/judges",
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Judge"],
+      invalidatesTags: ["Judge", "AdminDashboard"],
     }),
     deleteJudge: builder.mutation<void, string>({
       query: (id) => ({
         url: `/admin/judges/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Judge"],
+      invalidatesTags: ["Judge", "JudgeAssignment", "AdminDashboard"],
     }),
-    updateJudge: builder.mutation<
-      any,
-      { id: string; name: string; email: string }
-    >({
-      query: ({ id, name, email }) => ({
+    updateJudge: builder.mutation<Judge, { id: string; body: Partial<Judge> }>({
+      query: ({ id, body }) => ({
         url: `/admin/judges/${id}`,
         method: "PATCH",
-        body: { name, email },
+        body,
       }),
-      invalidatesTags: ["Judge"],
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Judge", id },
+        "Judge",
+      ],
     }),
-    assignTeamsToJudge: builder.mutation<
-      any,
-      { judgeId: string; teamIds: string[]; roundId?: string }
-    >({
+    assignTeamsToJudge: builder.mutation<any, { judgeId: string; teamIds: string[]; roundId?: string }>({
       query: ({ judgeId, teamIds, roundId }) => ({
         url: `/admin/judges/${judgeId}/assign`,
         method: "POST",
         body: { teamIds, roundId },
       }),
-      invalidatesTags: ["Judge"],
+      invalidatesTags: ["Judge", "JudgeAssignment"],
     }),
-    getJudgeAssignmentsForRound: builder.query<
-      { assignments: any[]; assignedTeamIds: string[] },
-      string
-    >({
+    getJudgeAssignmentsForRound: builder.query<any, string>({
       query: (roundId) => `/admin/judges/assignments?round_id=${roundId}`,
       providesTags: (result, error, roundId) => [
-        { type: "Judge", id: `round_${roundId}` },
+        { type: "JudgeAssignment", id: `round_${roundId}` },
       ],
+    }),
+    createJudgeAssignment: builder.mutation<any, { judgeId: string; teamIds: string[]; roundId: string }>({
+      query: ({ judgeId, teamIds, roundId }) => ({
+        url: "/admin/judges/assignments",
+        method: "POST",
+        body: { judgeId, teamIds, roundId },
+      }),
+      invalidatesTags: ["JudgeAssignment"],
     }),
   }),
 });
@@ -219,24 +219,26 @@ export const {
   useCreateRoundMutation,
   useGetRoundDetailsQuery,
   useUpdateRoundMutation,
-  useToggleRoundStatusMutation,
   useDeleteRoundMutation,
   useGetRoundTeamsQuery,
   useUpdateRoundTeamsMutation,
-  useGetRoundTeamSubtasksQuery,
-  useUpdateRoundTeamSubtasksMutation,
+  useGetRoundSubtasksQuery,
   useGetAdminTeamsQuery,
   useCreateTeamMutation,
+  useBatchCreateTeamsMutation,
   useUpdateTeamStatusMutation,
   useGetTeamDetailsQuery,
-  useGetSubtasksQuery,
+  useGetAllSubtasksQuery,
   useCreateSubtaskMutation,
   useUpdateSubtaskMutation,
   useDeleteSubtaskMutation,
   useGetJudgesQuery,
+  useGetJudgeDetailsQuery,
   useCreateJudgeMutation,
   useDeleteJudgeMutation,
   useUpdateJudgeMutation,
   useAssignTeamsToJudgeMutation,
   useGetJudgeAssignmentsForRoundQuery,
+  useCreateJudgeAssignmentMutation,
+  useBulkUpdateTeamsMutation,
 } = adminApi;

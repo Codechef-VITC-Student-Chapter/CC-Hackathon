@@ -38,7 +38,14 @@ async function GETHandler(
       team_id: teamId,
       round_id: id,
     })
-      .populate("selected", "title description")
+      .populate("selected", "title description statement track_id")
+      .populate({
+        path: "selected",
+        populate: {
+          path: "track_id",
+          select: "name description",
+        },
+      })
       .populate("options", "title description")
       .lean();
 
@@ -69,9 +76,50 @@ async function GETHandler(
     } else {
       // If no selection yet, get subtasks for the team's track
       const trackId = (team.track_id as any)?._id;
-      if (trackId) {
+      
+      // For round 4, get all 3 remaining subtasks from completed rounds
+      if (round.round_number === 4 && trackId) {
+        // Get all completed rounds (rounds 1-3)
+        const completedRounds = await Round.find({
+          round_number: { $lt: 4 },
+          is_active: false,
+        }).lean();
+
+        const completedRoundIds = completedRounds.map((r) => r._id);
+
+        // Get subtasks already selected by this team in rounds 1-3
+        const previousSelections = await RoundOptions.find({
+          team_id: teamId,
+          round_id: { $in: completedRoundIds },
+          selected: { $ne: null },
+        })
+          .populate("selected", "_id")
+          .lean();
+
+        const selectedSubtaskIds = previousSelections.map(
+          (s: any) => s.selected._id,
+        );
+
+        // Get all active subtasks from this track that aren't already selected
         const subs = await Subtask.find({
-          track_id: new mongoose.Types.ObjectId(trackId.toString()),
+          round_id: round._id,
+          track: (team.track_id as any)?.name || undefined,
+          is_active: true,
+          _id: { $nin: selectedSubtaskIds },
+        })
+          .select("_id title description")
+          .limit(3)
+          .lean();
+
+        availableOptions = subs.map((s: any) => ({
+          _id: s._id,
+          title: s.title,
+          description: s.description,
+        }));
+      } else {
+        // For other rounds, get subtasks normally
+        const subs = await Subtask.find({
+          round_id: id,
           is_active: true,
         })
           .select("_id title description")
@@ -85,19 +133,15 @@ async function GETHandler(
       }
     }
 
-    // Get score if submission exists
+    // Get score if submission exists, but don't expose to team
     if (submission) {
       const scores = await Score.find({
         submission_id: submission._id,
         status: "scored",
       }).lean();
       if (scores.length > 0) {
-        const totalScore = scores.reduce((sum, s) => sum + (s.score || 0), 0);
-        score = {
-          score: totalScore,
-          remarks: scores[0]?.remarks || "",
-          status: "scored",
-        };
+        // DO NOT expose score to team - only store for admin/judge
+        score = null;
       }
     }
 
@@ -134,12 +178,11 @@ async function GETHandler(
             _id: (subtask as any)._id,
             title: (subtask as any).title,
             description: (subtask as any).description,
+            track: (subtask as any).track_id?.name || null,
+            statement: (subtask as any).statement || null,
           }
         : null,
-      availableOptions: availableOptions,
-      hasOptions: selection
-        ? selection.options && selection.options.length > 0
-        : false,
+      initialSubtasks: availableOptions,
       submission: submission
         ? {
             _id: submission._id,
@@ -151,13 +194,7 @@ async function GETHandler(
             submitted_by_team_id: submission.team_id,
           }
         : null,
-      score: score
-        ? {
-            score: score.score,
-            remarks: score.remarks,
-            status: score.status,
-          }
-        : null,
+      score: null, // Never expose score to team - only judge and admin can see scores
     };
 
     return NextResponse.json(responseData);

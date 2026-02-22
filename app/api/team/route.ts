@@ -1,5 +1,5 @@
 /**
- * GET /api/team/dashboard
+ * GET /api/team
  *
  * Returns the team's dashboard info:
  *  - team_name, track
@@ -7,7 +7,6 @@
  *  - round instructions
  *  - current round subtask selection
  *  - current round submission
- *  - all scores from previous rounds
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,10 +14,8 @@ import { connectDB } from "@/config/db";
 import { getTeamSession } from "@/lib/getTeamSession";
 import Team from "@/models/Team";
 import Round from "@/models/Round";
-import Score from "@/models/Score";
 import RoundOptions from "@/models/RoundOptions";
 import Submission from "@/models/Submission";
-import Subtask from "@/models/Subtask";
 import { proxy } from "@/lib/proxy";
 
 async function GETHandler(request: NextRequest) {
@@ -49,60 +46,6 @@ async function GETHandler(request: NextRequest) {
       team_id: teamId,
       round_id: { $in: accessibleRoundIds },
     }).lean();
-
-    const submissionIds = submissions.map((s) => s._id);
-
-    // Fetch all scores across all submissions
-    const allScores = await Score.find({
-      submission_id: { $in: submissionIds },
-    }).populate("submission_id");
-
-    // Fetch score for the current/latest round
-    let currentRoundScore = null;
-    if (activeRound) {
-      const currentSubmission = submissions.find(
-        (s: any) => s.round_id.toString() === activeRound._id.toString(),
-      );
-      if (currentSubmission) {
-        const scores = await Score.find({
-          submission_id: currentSubmission._id,
-          status: "scored",
-        });
-        const totalScore = scores.reduce((sum, s) => sum + (s.score || 0), 0);
-        if (scores.length > 0) {
-          currentRoundScore = {
-            score: totalScore,
-            remarks: scores[0]?.remarks || "",
-            status: "scored",
-          };
-        }
-      }
-    }
-
-    // Calculate cumulative total score
-    const totalScore = allScores.reduce((sum, scoreDoc) => {
-      return sum + (scoreDoc.score || 0);
-    }, 0);
-
-    // Find the latest scored submission with remarks
-    const latestScoredScore = await Score.findOne({
-      submission_id: { $in: submissionIds },
-      status: "scored",
-    })
-      .sort({ updated_at: -1 })
-      .populate("submission_id");
-
-    let latestRoundScore = null;
-    if (latestScoredScore) {
-      const latestSubmission = latestScoredScore.submission_id as any;
-      const latestRound = await Round.findById(latestSubmission?.round_id);
-      latestRoundScore = {
-        round_number: latestRound?.round_number || "Unknown",
-        score: latestScoredScore.score,
-        remarks: latestScoredScore.remarks,
-        status: latestScoredScore.status,
-      };
-    }
 
     // Fetch current round subtask selection
     let currentRoundSubtask = null;
@@ -141,28 +84,6 @@ async function GETHandler(request: NextRequest) {
       }
     }
 
-    // Fetch all round scores (current + previous) grouped by round
-    const roundScoresMap = new Map();
-    for (const submission of submissions) {
-      const scores = await Score.find({
-        submission_id: submission._id,
-        status: "scored",
-      });
-      const totalScore = scores.reduce((sum, s) => sum + (s.score || 0), 0);
-      const round = await Round.findById((submission as any).round_id);
-      if (round && totalScore > 0) {
-        roundScoresMap.set(round.round_number, {
-          round_number: round.round_number,
-          score: totalScore,
-          status: "scored",
-          remarks: scores[0]?.remarks || "",
-        });
-      }
-    }
-    const roundScores = Array.from(roundScoresMap.values()).sort(
-      (a, b) => a.round_number - b.round_number,
-    );
-
     return NextResponse.json({
       team_name: team.team_name,
       track: (team.track_id as any)?.name || "N/A",
@@ -179,10 +100,7 @@ async function GETHandler(request: NextRequest) {
         : null,
       current_round_subtask: currentRoundSubtask,
       current_round_submission: currentRoundSubmission,
-      current_round_score: currentRoundScore,
-      total_score: totalScore,
-      latest_round_score: latestRoundScore,
-      all_round_scores: roundScores,
+      // Note: Scores are NOT exposed to team - only judges and admins can see scores
       rounds_accessible: accessibleRoundIds,
     });
 

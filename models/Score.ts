@@ -13,7 +13,12 @@ export interface IScore extends Document {
 const ScoreSchema = new Schema<IScore>({
   judge_id: { type: Schema.Types.ObjectId, ref: "Judge" },
   submission_id: { type: Schema.Types.ObjectId, ref: "Submission" },
-  score: Number,
+  score: {
+    type: Number,
+    min: 0,
+    max: 100,
+    required: [true, "Score is required"],
+  },
   remarks: String,
   status: { type: String, enum: ["pending", "scored"], default: "pending" },
   created_at: { type: Date, default: Date.now },
