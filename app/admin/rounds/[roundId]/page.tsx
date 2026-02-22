@@ -57,6 +57,7 @@ import {
   useUpdateRoundTeamsMutation,
   useGetRoundTeamSubtasksQuery,
   useUpdateRoundTeamSubtasksMutation,
+  useGetTracksQuery,
 } from "@/lib/redux/api/adminApi";
 import { toast } from "sonner";
 
@@ -81,6 +82,7 @@ export default function RoundDetailsPage() {
   const { data: roundTeamSubtasks, isLoading: teamSubtasksLoading } =
     useGetRoundTeamSubtasksQuery(roundId);
   const [updateRoundTeamSubtasks] = useUpdateRoundTeamSubtasksMutation();
+  const { data: tracks = [] } = useGetTracksQuery();
 
   // Local State for forms
   const [instructions, setInstructions] = useState("");
@@ -89,13 +91,14 @@ export default function RoundDetailsPage() {
   const [createSubtaskOpen, setCreateSubtaskOpen] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [newSubtaskDesc, setNewSubtaskDesc] = useState("");
-  const [newSubtaskTrack, setNewSubtaskTrack] = useState("");
+  const [newSubtaskTrackId, setNewSubtaskTrackId] = useState("");
   const [editSubtaskOpen, setEditSubtaskOpen] = useState(false);
   const [editSubtaskId, setEditSubtaskId] = useState<string | null>(null);
   const [editSubtaskTitle, setEditSubtaskTitle] = useState("");
   const [editSubtaskDesc, setEditSubtaskDesc] = useState("");
-  const [editSubtaskTrack, setEditSubtaskTrack] = useState("");
+  const [editSubtaskTrackId, setEditSubtaskTrackId] = useState("");
   const [isUpdatingSubtask, setIsUpdatingSubtask] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [deleteConfirmSubtaskId, setDeleteConfirmSubtaskId] = useState<
     string | null
   >(null);
@@ -113,8 +116,11 @@ export default function RoundDetailsPage() {
 
   // Initialize form state when data is loaded
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (round) {
-      // Set breadcrumbs
       setBreadcrumbs([
         { label: "Rounds", href: "/admin/rounds" },
         {
@@ -147,16 +153,19 @@ export default function RoundDetailsPage() {
   }, [round]);
 
   useEffect(() => {
-    if (roundTeams?.allowedTeamIds) {
-      setAllowedTeamIds(roundTeams.allowedTeamIds);
+    const rt: any = roundTeams;
+    if (rt?.allowed_team_ids || rt?.allowedTeamIds) {
+      setAllowedTeamIds(rt.allowed_team_ids ?? rt.allowedTeamIds);
     }
   }, [roundTeams]);
 
   useEffect(() => {
     if (roundTeamSubtasks?.assignments) {
       const nextMap: Record<string, string[]> = {};
-      roundTeamSubtasks.assignments.forEach((assignment) => {
-        nextMap[assignment.teamId] = assignment.subtaskIds || [];
+      (roundTeamSubtasks.assignments as any).forEach((assignment: any) => {
+        const teamId = assignment.team_id ?? assignment.teamId;
+        const subtaskIds = assignment.subtask_ids ?? assignment.subtaskIds ?? [];
+        nextMap[teamId] = subtaskIds;
       });
       setTeamSubtaskMap(nextMap);
     }
@@ -185,25 +194,28 @@ export default function RoundDetailsPage() {
         round_id: roundId,
         title: newSubtaskTitle,
         description: newSubtaskDesc,
-        track: newSubtaskTrack,
+        track_id: newSubtaskTrackId,
       }).unwrap();
 
       toast.success("Subtask created successfully");
       setCreateSubtaskOpen(false);
       setNewSubtaskTitle("");
       setNewSubtaskDesc("");
-      setNewSubtaskTrack("");
-    } catch (e) {
+      setNewSubtaskTrackId("");
+    } catch (e: any) {
       console.error(e);
-      toast.error("Error creating subtask");
+      const errorMsg = e.data?.error 
+        ? (typeof e.data.error === 'object' ? JSON.stringify(e.data.error) : e.data.error)
+        : "Error creating subtask";
+      toast.error(errorMsg);
     }
   };
 
   const handleEditSubtask = (task: any) => {
-    setEditSubtaskId(task._id || task.id);
+    setEditSubtaskId(task.id || task._id);
     setEditSubtaskTitle(task.title || "");
     setEditSubtaskDesc(task.description || "");
-    setEditSubtaskTrack(task.track || "");
+    setEditSubtaskTrackId(task.track_id || "");
     setEditSubtaskOpen(true);
   };
 
@@ -216,7 +228,7 @@ export default function RoundDetailsPage() {
         body: {
           title: editSubtaskTitle,
           description: editSubtaskDesc,
-          track: editSubtaskTrack,
+          track_id: editSubtaskTrackId,
           round_id: roundId,
         },
       }).unwrap();
@@ -225,10 +237,13 @@ export default function RoundDetailsPage() {
       setEditSubtaskId(null);
       setEditSubtaskTitle("");
       setEditSubtaskDesc("");
-      setEditSubtaskTrack("");
-    } catch (e) {
+      setEditSubtaskTrackId("");
+    } catch (e: any) {
       console.error(e);
-      toast.error("Error updating subtask");
+      const errorMsg = e.data?.error 
+        ? (typeof e.data.error === 'object' ? JSON.stringify(e.data.error) : e.data.error)
+        : "Error updating subtask";
+      toast.error(errorMsg);
     } finally {
       setIsUpdatingSubtask(false);
     }
@@ -337,7 +352,10 @@ export default function RoundDetailsPage() {
     }
   };
 
-  if (loading) return <LoadingState message="Loading round details..." />;
+  if (!mounted || loading) {
+    return <LoadingState message="Loading round details..." />;
+  }
+
   if (!round) return <LoadingState message="Round not found" />;
 
   return (
@@ -449,11 +467,21 @@ export default function RoundDetailsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Track</Label>
-                  <Input
-                    value={newSubtaskTrack}
-                    onChange={(e) => setNewSubtaskTrack(e.target.value)}
-                    placeholder="e.g. AI/ML"
-                  />
+                  <Select
+                    value={newSubtaskTrackId}
+                    onValueChange={setNewSubtaskTrackId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Track" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tracks.map((track: any) => (
+                        <SelectItem key={track.id} value={track.id}>
+                          {track.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
@@ -485,11 +513,21 @@ export default function RoundDetailsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Track</Label>
-                  <Input
-                    value={editSubtaskTrack}
-                    onChange={(e) => setEditSubtaskTrack(e.target.value)}
-                    placeholder="e.g. AI/ML"
-                  />
+                  <Select
+                    value={editSubtaskTrackId}
+                    onValueChange={setEditSubtaskTrackId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Track" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tracks.map((track: any) => (
+                        <SelectItem key={track.id} value={track.id}>
+                          {track.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
@@ -557,7 +595,7 @@ export default function RoundDetailsPage() {
             <div className="space-y-3">
               {subtasks.map((task: any) => (
                 <div
-                  key={task._id}
+                  key={task.id || task._id}
                   className="flex items-start justify-between p-4 rounded-lg border bg-muted/20"
                 >
                   <div>
@@ -585,7 +623,7 @@ export default function RoundDetailsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDeleteSubtask(task._id)}
+                      onClick={() => handleDeleteSubtask(task.id || task._id)}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="size-4" />
@@ -638,10 +676,10 @@ export default function RoundDetailsPage() {
                           onCheckedChange={() =>
                             handleToggleTeamAllowed(team.id)
                           }
-                          aria-label={`Toggle ${team.name}`}
+                          aria-label={`Toggle ${team.team_name}`}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{team.name}</TableCell>
+                      <TableCell className="font-medium">{team.team_name}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {team.track || "—"}
                       </TableCell>
@@ -659,8 +697,8 @@ export default function RoundDetailsPage() {
                           <SelectContent>
                             {subtasks.map((subtask: any) => (
                               <SelectItem
-                                key={subtask._id || subtask.id}
-                                value={subtask._id || subtask.id}
+                                key={subtask.id || subtask._id}
+                                value={subtask.id || subtask._id}
                               >
                                 {subtask.track
                                   ? `${subtask.title} (${subtask.track})`
@@ -683,8 +721,8 @@ export default function RoundDetailsPage() {
                           <SelectContent>
                             {subtasks.map((subtask: any) => (
                               <SelectItem
-                                key={subtask._id || subtask.id}
-                                value={subtask._id || subtask.id}
+                                key={subtask.id || subtask._id}
+                                value={subtask.id || subtask._id}
                               >
                                 {subtask.track
                                   ? `${subtask.title} (${subtask.track})`
