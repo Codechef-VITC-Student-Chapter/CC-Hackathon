@@ -53,6 +53,7 @@ async function POSTHandler(request: NextRequest) {
       end_time: end_time ? new Date(end_time) : null,
       instructions: instructions || "",
       is_active: false,
+      submission_enabled: body.submission_enabled || false,
     });
 
     return NextResponse.json(
