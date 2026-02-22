@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, Clock, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGetJudgeAssignedTeamsQuery } from "@/lib/redux/api/judgeApi";
+import { useGetJudgeAssignedTeamsQuery, useGetJudgeProfileQuery } from "@/lib/redux/api/judgeApi";
 import { setBreadcrumbs } from "@/lib/hooks/useBreadcrumb";
 
 type TeamAssignment = {
@@ -20,6 +20,8 @@ type TeamAssignment = {
 
 export default function JudgeHomePage() {
   const router = useRouter();
+
+  const { data: profile } = useGetJudgeProfileQuery();
 
   const {
     data: assignedTeams = [],
@@ -50,6 +52,18 @@ export default function JudgeHomePage() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Judge Dashboard
         </h1>
+        {profile?.judge && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-muted-foreground text-sm">
+              {profile.judge.name}
+            </p>
+            {profile.judge.track && (
+              <Badge variant="outline" className="text-xs">
+                Track: {profile.judge.track}
+              </Badge>
+            )}
+          </div>
+        )}
       </header>
 
       {isError && (

@@ -1,28 +1,9 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Users,
-  FileCheck,
-  Clock,
-  PlayCircle,
-  StopCircle,
-  Trophy,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Users, FileCheck, Clock, Trophy } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -36,83 +17,17 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import {
-  useGetAdminDashboardQuery,
-  useGetAdminRoundsQuery,
-  useUpdateRoundMutation,
-} from "@/lib/redux/api/adminApi";
+import { useGetAdminDashboardQuery } from "@/lib/redux/api/adminApi";
 import { setBreadcrumbs } from "@/lib/hooks/useBreadcrumb";
-import { toast } from "sonner";
 
 export default function AdminDashboardPage() {
-  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
-  const [submissionToggled, setSubmissionToggled] = useState(false);
-
   useEffect(() => {
     setBreadcrumbs([]);
   }, []);
 
-  const { data: stats, isLoading: statsLoading } =
-    useGetAdminDashboardQuery();
-  const { data: rounds = [], isLoading: roundsLoading } =
-    useGetAdminRoundsQuery();
-  const [updateRound] = useUpdateRoundMutation();
+  const { data: stats, isLoading } = useGetAdminDashboardQuery();
 
-  const loading = statsLoading || roundsLoading || !stats;
-
-  useEffect(() => {
-    if (stats?.currentRound && !selectedRoundId) {
-      setSelectedRoundId(stats.currentRound.id);
-    }
-  }, [stats, selectedRoundId]);
-
-  useEffect(() => {
-    if (selectedRoundId && rounds.length > 0) {
-      const r = rounds.find((rd: any) => rd._id === selectedRoundId);
-      if (r) setSubmissionToggled(r.submission_enabled ?? false);
-    }
-  }, [selectedRoundId, rounds]);
-
-  const handleStartRound = async () => {
-    if (!selectedRoundId) return;
-    try {
-      await updateRound({
-        id: selectedRoundId,
-        body: { is_active: true },
-      }).unwrap();
-      toast.success("Round started successfully");
-    } catch {
-      toast.error("Failed to start round");
-    }
-  };
-
-  const handleStopRound = async () => {
-    if (!selectedRoundId) return;
-    try {
-      await updateRound({
-        id: selectedRoundId,
-        body: { is_active: false },
-      }).unwrap();
-      toast.success("Round stopped successfully");
-    } catch {
-      toast.error("Failed to stop round");
-    }
-  };
-
-  const handleToggleSubmission = async (checked: boolean) => {
-    setSubmissionToggled(checked);
-    if (!selectedRoundId) return;
-    try {
-      await updateRound({
-        id: selectedRoundId,
-        body: { submission_enabled: checked },
-      }).unwrap();
-      toast.success(`Submissions ${checked ? "enabled" : "disabled"}`);
-    } catch {
-      setSubmissionToggled(!checked);
-      toast.error("Failed to toggle submission");
-    }
-  };
+  const loading = isLoading || !stats;
 
   const evaluationData = [
     { name: "Submitted", value: stats?.submissionsCount || 0, fill: "#10b981" },
@@ -292,9 +207,7 @@ export default function AdminDashboardPage() {
                         {team.track}
                       </p>
                     </div>
-                    <p className="font-semibold">
-                      {team.cumulativeScore}
-                    </p>
+                    <p className="font-semibold">{team.cumulativeScore}</p>
                   </div>
                 ))}
               </div>
