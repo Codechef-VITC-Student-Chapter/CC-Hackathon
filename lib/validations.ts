@@ -9,9 +9,9 @@ export const scoreSchema = z.object({
 });
 
 export const submissionSchema = z.object({
-  roundId: z.string().min(1, "Round ID is required"),
-  fileUrl: z.string().url("Invalid file URL").optional().or(z.literal("")),
-  githubLink: z.string().url("Invalid GitHub URL").optional().or(z.literal("")),
+  round_id: z.string().min(1, "Round ID is required"),
+  file_url: z.string().url("Invalid file URL").optional().or(z.literal("")),
+  github_link: z.string().url("Invalid GitHub URL").optional().or(z.literal("")),
   overview: z.string().optional(),
 });
 
@@ -35,6 +35,7 @@ export const subtaskSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   track_id: z.string().min(1, "Track ID is required"),
+  round_id: z.string().min(1, "Round ID is required"),
   is_active: z.boolean().optional(),
 });
 

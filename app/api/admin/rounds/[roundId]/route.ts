@@ -12,6 +12,7 @@ const updateRoundSchema = z.object({
   end_time: z.string().datetime().optional(),
   instructions: z.string().optional(),
   is_active: z.boolean().optional(),
+  submission_enabled: z.boolean().optional(),
 });
 
 // GET: Fetch a specific round
@@ -62,6 +63,8 @@ async function PATCHHandler(
         round.is_active = true;
       } else if (body.action === "stop" || body.action === "deactivate") {
         round.is_active = false;
+      } else if (body.action === "toggle-submission") {
+        round.submission_enabled = !round.submission_enabled;
       } else {
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
       }
@@ -94,6 +97,8 @@ async function PATCHHandler(
       updateData.instructions = validation.data.instructions;
     if (validation.data.is_active !== undefined)
       updateData.is_active = validation.data.is_active;
+    if (validation.data.submission_enabled !== undefined)
+      updateData.submission_enabled = validation.data.submission_enabled;
 
     const updatedRound = await Round.findByIdAndUpdate(roundId, updateData, {
       new: true,

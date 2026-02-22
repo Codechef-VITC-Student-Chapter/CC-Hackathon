@@ -60,27 +60,27 @@ async function GETHandler(
         track_id: team.track_id?._id?.toString() || null,
         submission: submission
           ? {
-              id: submission._id.toString(),
-              github_link: submission.github_link,
-              file_url: submission.file_url,
-              submitted_at: submission.submitted_at,
-            }
+            id: submission._id.toString(),
+            github_link: submission.github_link,
+            file_url: submission.file_url,
+            submitted_at: submission.submitted_at,
+          }
           : null,
         score: score ?? null,
         subtask_history: options
           ? {
-              options: (options.options || []).map((opt: any) => ({
-                id: opt._id.toString(),
-                title: opt.title,
-              })),
-              selected: options.selected
-                ? {
-                    id: options.selected._id.toString(),
-                    title: options.selected.title,
-                  }
-                : null,
-              selected_at: options.selected_at,
-            }
+            options: (options.options || []).map((opt: any) => ({
+              id: opt._id.toString(),
+              title: opt.title,
+            })),
+            selected: options.selected
+              ? {
+                id: options.selected._id.toString(),
+                title: options.selected.title,
+              }
+              : null,
+            selected_at: options.selected_at,
+          }
           : null,
         allowed: (team.rounds_accessible || []).some(
           (r: any) => r.toString() === roundId,
@@ -93,9 +93,19 @@ async function GETHandler(
       teamsByTrack[trackName].push(teamData);
     });
 
+    const allowedTeamIds = teams
+      .filter((team: any) =>
+        (team.rounds_accessible || []).some(
+          (r: any) => r.toString() === roundId,
+        ),
+      )
+      .map((team: any) => team._id.toString());
+
     return NextResponse.json({
       teams_by_track: teamsByTrack,
+      teams: Object.values(teamsByTrack).flat(),
       total_teams: teams.length,
+      allowed_team_ids: allowedTeamIds,
     });
   } catch (error) {
     console.error("Error fetching round teams:", error);

@@ -12,22 +12,22 @@ async function POSTHandler(
 
   try {
     const body = await request.json();
-    const { teamIds } = body;
+    const { team_ids } = body;
 
-    if (!Array.isArray(teamIds)) {
+    if (!Array.isArray(team_ids)) {
       return NextResponse.json(
-        { error: "teamIds must be an array" },
+        { error: "team_ids must be an array" },
         { status: 400 },
       );
     }
 
     // Update judge's teams_assigned field
-    await Judge.updateOne({ _id: judgeId }, { teams_assigned: teamIds });
+    await Judge.updateOne({ _id: judgeId }, { teams_assigned: team_ids });
 
     return NextResponse.json({
       message: `Updated team assignments for Judge ${judgeId}`,
       success: true,
-      assignedCount: teamIds.length,
+      assigned_count: team_ids.length,
     });
   } catch (error) {
     console.error("Error assigning teams:", error);

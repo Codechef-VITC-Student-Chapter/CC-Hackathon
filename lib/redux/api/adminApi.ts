@@ -130,9 +130,44 @@ export const adminApi = baseApi.injectEndpoints({
         { type: "Round", id: roundId },
       ],
     }),
+    // Tracks endpoints
+    getTracks: builder.query<any[], void>({
+      query: () => "/admin/tracks",
+      providesTags: ["Track"],
+    }),
+    createTrack: builder.mutation<any, Partial<any>>({
+      query: (body) => ({
+        url: "/admin/tracks",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Track"],
+    }),
+    getTrack: builder.query<any, string>({
+      query: (id) => `/admin/tracks/${id}`,
+      providesTags: (result, error, id) => [{ type: "Track", id }],
+    }),
+    updateTrack: builder.mutation<any, { id: string; body: any }>({
+      query: ({ id, body }) => ({
+        url: `/admin/tracks/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Track", id },
+        "Track",
+      ],
+    }),
+    deleteTrack: builder.mutation<void, string>({
+      query: (id) => ({
+        url: `/admin/tracks/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Track"],
+    }),
     createSubtask: builder.mutation<
       any,
-      { round_id: string; title: string; description?: string; track?: string }
+      { round_id: string; title: string; description?: string; track_id?: string }
     >({
       query: (body) => ({
         url: "/admin/subtasks",
@@ -197,7 +232,8 @@ export const adminApi = baseApi.injectEndpoints({
       query: ({ judgeId, teamIds, roundId }) => ({
         url: `/admin/judges/${judgeId}/assign`,
         method: "POST",
-        body: { teamIds, roundId },
+        // server expects snake_case keys: team_ids and optionally round_id
+        body: { team_ids: teamIds, round_id: roundId },
       }),
       invalidatesTags: ["Judge"],
     }),
@@ -230,6 +266,11 @@ export const {
   useUpdateTeamStatusMutation,
   useGetTeamDetailsQuery,
   useGetSubtasksQuery,
+  useGetTracksQuery,
+  useCreateTrackMutation,
+  useGetTrackQuery,
+  useUpdateTrackMutation,
+  useDeleteTrackMutation,
   useCreateSubtaskMutation,
   useUpdateSubtaskMutation,
   useDeleteSubtaskMutation,

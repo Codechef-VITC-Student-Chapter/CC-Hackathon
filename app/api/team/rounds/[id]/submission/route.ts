@@ -23,7 +23,7 @@ async function POSTHandler(
   const { id: roundId } = await context.params;
   const body = await req.json();
 
-  const validation = submissionSchema.safeParse({ ...body, roundId });
+  const validation = submissionSchema.safeParse({ ...body, round_id: roundId });
   if (!validation.success) {
     return NextResponse.json(
       { error: validation.error.flatten().fieldErrors },
@@ -31,7 +31,7 @@ async function POSTHandler(
     );
   }
 
-  const { fileUrl, githubLink, overview } = validation.data;
+  const { file_url, github_link, overview } = validation.data;
 
   await connectDB();
   const user = await User.findOne({ email }).lean();
@@ -58,8 +58,8 @@ async function POSTHandler(
     const doc = await Submission.create({
       team_id: user.team_id,
       round_id: new mongoose.Types.ObjectId(roundId),
-      file_url: fileUrl,
-      github_link: githubLink,
+      file_url: file_url,
+      github_link: github_link,
       overview,
     });
     return NextResponse.json({ ok: true, submission: doc });
@@ -82,7 +82,7 @@ async function PATCHHandler(
   const { id: roundId } = await context.params;
   const body = await req.json();
 
-  const validation = submissionSchema.safeParse({ ...body, roundId });
+  const validation = submissionSchema.safeParse({ ...body, round_id: roundId });
   if (!validation.success) {
     return NextResponse.json(
       { error: validation.error.flatten().fieldErrors },
@@ -90,7 +90,7 @@ async function PATCHHandler(
     );
   }
 
-  const { fileUrl, githubLink, overview } = validation.data;
+  const { file_url, github_link, overview } = validation.data;
 
   await connectDB();
   const user = await User.findOne({ email }).lean();
@@ -128,8 +128,8 @@ async function PATCHHandler(
     }
 
     // Update only the provided fields
-    if (fileUrl !== undefined) submission.file_url = fileUrl;
-    if (githubLink !== undefined) submission.github_link = githubLink;
+    if (file_url !== undefined) submission.file_url = file_url;
+    if (github_link !== undefined) submission.github_link = github_link;
     if (overview !== undefined) submission.overview = overview;
     // Keep original submitted_at timestamp
 
@@ -187,11 +187,11 @@ async function GETHandler(
       score:
         scores.length > 0
           ? {
-              score: totalScore,
-              status: "scored",
-              remarks: scores[0]?.remarks || "",
-              num_judges: scores.length,
-            }
+            score: totalScore,
+            status: "scored",
+            remarks: scores[0]?.remarks || "",
+            num_judges: scores.length,
+          }
           : null,
     };
 

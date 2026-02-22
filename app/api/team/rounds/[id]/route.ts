@@ -72,6 +72,7 @@ async function GETHandler(
       if (trackId) {
         const subs = await Subtask.find({
           track_id: new mongoose.Types.ObjectId(trackId.toString()),
+          round_id: new mongoose.Types.ObjectId(id),
           is_active: true,
         })
           .select("_id title description")
@@ -107,6 +108,7 @@ async function GETHandler(
         _id: round._id,
         round_number: round.round_number,
         is_active: round.is_active,
+        submission_enabled: round.submission_enabled,
         instructions: round.instructions,
         start_time: round.start_time,
         end_time: round.end_time,
@@ -122,19 +124,19 @@ async function GETHandler(
       },
       selection: selection
         ? {
-            _id: selection._id,
-            selected: selection.selected,
-            team_id: selection.team_id,
-            round_id: selection.round_id,
-            selected_at: selection.selected_at,
-          }
+          _id: selection._id,
+          selected: selection.selected,
+          team_id: selection.team_id,
+          round_id: selection.round_id,
+          selected_at: selection.selected_at,
+        }
         : null,
       subtask: subtask
         ? {
-            _id: (subtask as any)._id,
-            title: (subtask as any).title,
-            description: (subtask as any).description,
-          }
+          _id: (subtask as any)._id,
+          title: (subtask as any).title,
+          description: (subtask as any).description,
+        }
         : null,
       availableOptions: availableOptions,
       hasOptions: selection
@@ -142,21 +144,21 @@ async function GETHandler(
         : false,
       submission: submission
         ? {
-            _id: submission._id,
-            submitted_at: submission.submitted_at,
-            github_link: submission.github_link,
-            file_url: submission.file_url,
-            overview: submission.overview,
-            submission_text: submission.submission_text,
-            submitted_by_team_id: submission.team_id,
-          }
+          _id: submission._id,
+          submitted_at: submission.submitted_at,
+          github_link: submission.github_link,
+          file_url: submission.file_url,
+          overview: submission.overview,
+          submission_text: submission.submission_text,
+          submitted_by_team_id: submission.team_id,
+        }
         : null,
       score: score
         ? {
-            score: score.score,
-            remarks: score.remarks,
-            status: score.status,
-          }
+          score: score.score,
+          remarks: score.remarks,
+          status: score.status,
+        }
         : null,
     };
 

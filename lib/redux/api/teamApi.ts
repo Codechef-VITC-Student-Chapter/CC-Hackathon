@@ -1,12 +1,13 @@
 import { baseApi } from "./baseApi";
+import { TeamDashboard, Round, Submission } from "./types";
 
 export const teamApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getTeamDashboard: builder.query<any, void>({
-      query: () => "/team/dashboard",
+    getTeamDashboard: builder.query<TeamDashboard, void>({
+      query: () => "/team",
       providesTags: ["Team", "Round"],
     }),
-    getTeamRounds: builder.query<any[], void>({
+    getTeamRounds: builder.query<Round[], void>({
       query: () => "/team/rounds",
       providesTags: ["Round"],
     }),
@@ -27,7 +28,7 @@ export const teamApi = baseApi.injectEndpoints({
         { type: "Round", id: roundId },
       ],
     }),
-    getTeamSubmissions: builder.query<any[], void>({
+    getTeamSubmissions: builder.query<Submission[], void>({
       query: () => "/team/submission",
       providesTags: ["Submission"],
     }),

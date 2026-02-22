@@ -1,7 +1,12 @@
 import { baseApi } from "./baseApi";
+import { JudgeDashboard } from "./types";
 
 export const judgeApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
+        getJudgeDashboard: builder.query<JudgeDashboard, void>({
+            query: () => "/judge",
+            providesTags: ["Judge"],
+        }),
         getJudgeAssignedTeams: builder.query<any[], string | void>({ // Returns array of teams
             query: (roundId) => roundId ? `/judge/assigned-teams?round_id=${roundId}` : `/judge/assigned-teams`,
             providesTags: ["Judge"],
@@ -23,6 +28,7 @@ export const judgeApi = baseApi.injectEndpoints({
 });
 
 export const {
+    useGetJudgeDashboardQuery,
     useGetJudgeAssignedTeamsQuery,
     useGetJudgeTeamDetailsQuery,
     useSubmitScoreMutation,

@@ -83,7 +83,16 @@ export default function Page() {
     );
   }
 
-  const { round, subtask, submission, initialSubtasks, score } = data;
+  const { round, subtask, submission, score } = data;
+  // server returns availableOptions; normalize to `initialSubtasks` shape expected by UI
+  const initialSubtasks =
+    (data as any).initialSubtasks ||
+    ((data as any).availableOptions || []).map((s: any) => ({
+      id: s._id,
+      _id: s._id,
+      title: s.title,
+      description: s.description,
+    }));
   const isRoundEnded =
     round.end_time &&
     new Date().getTime() > new Date(round.end_time).getTime();
@@ -252,9 +261,9 @@ export default function Page() {
       <div className="grid gap-4 md:grid-cols-2">
         {initialSubtasks?.map((task: any) => (
           <Card
-            key={task._id}
+            key={task.id}
             className="cursor-pointer transition hover:bg-muted/50"
-            onClick={() => setSelectedSubtaskId(task._id)}
+            onClick={() => setSelectedSubtaskId(task.id)}
           >
             <CardHeader>
               <CardTitle className="text-base">{task.title}</CardTitle>
@@ -274,7 +283,7 @@ export default function Page() {
                   try {
                     await selectSubtask({
                       roundId: id,
-                      subtaskId: task._id,
+                      subtaskId: task.id,
                     }).unwrap();
                     toast.success("Subtask selected successfully!");
                   } catch (error: any) {
@@ -287,7 +296,7 @@ export default function Page() {
                 }}
                 disabled={isSelecting}
               >
-                {selectedSubtaskId === task._id ? "Selected" : "Select"}
+                {selectedSubtaskId === task.id ? "Selected" : "Select"}
               </Button>
             </CardContent>
           </Card>

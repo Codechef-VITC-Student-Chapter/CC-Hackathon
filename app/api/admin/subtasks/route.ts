@@ -11,9 +11,13 @@ async function GETHandler(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const track_id = searchParams.get("track_id");
+  const round_id = searchParams.get("round_id");
 
   try {
-    const query = track_id ? { track_id } : {};
+    const query: any = {};
+    if (track_id) query.track_id = track_id;
+    if (round_id) query.round_id = round_id;
+
     const subtasks = await Subtask.find(query)
       .populate("track_id", "name")
       .sort({ created_at: -1 })
@@ -25,6 +29,7 @@ async function GETHandler(req: NextRequest) {
       description: subtask.description,
       track: subtask.track_id?.name || "N/A",
       track_id: subtask.track_id?._id?.toString() || null,
+      round_id: subtask.round_id?.toString() || null,
       is_active: subtask.is_active,
       created_at: subtask.created_at,
     }));
@@ -56,7 +61,8 @@ async function POSTHandler(req: NextRequest) {
       );
     }
 
-    const { title, description, track_id, is_active } = validation.data;
+    const { title, description, track_id, round_id, is_active } = validation.data;
+    console.log("Creating subtask with data:", { title, track_id, round_id });
 
     // Verify track exists
     const track = await Track.findById(track_id);
@@ -69,8 +75,10 @@ async function POSTHandler(req: NextRequest) {
       title,
       description,
       track_id,
+      round_id,
       is_active: is_active !== undefined ? is_active : true,
     });
+    console.log("Subtask created in DB:", subtask);
 
     // Populate response
     const populatedSubtask = await Subtask.findById(subtask._id)
@@ -86,6 +94,7 @@ async function POSTHandler(req: NextRequest) {
           description: populatedSubtask.description,
           track: (populatedSubtask.track_id as any)?.name,
           track_id: (populatedSubtask.track_id as any)?._id?.toString(),
+          round_id: populatedSubtask.round_id?.toString(),
           is_active: populatedSubtask.is_active,
         },
       },

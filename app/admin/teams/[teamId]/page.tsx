@@ -33,21 +33,35 @@ export default function TeamDetailsPage() {
 
   const { data: details, isLoading } = useGetTeamDetailsQuery(teamId);
 
-  // Set breadcrumbs when team data is loaded
+  // Normalize API response (some endpoints return { team } while others return flat object)
   useEffect(() => {
-    if (details?.team) {
+    const teamData = details?.team
+      ? details.team
+      : details
+      ? {
+          id: (details as any).id ?? teamId,
+          team_name: (details as any).team_name ?? "Unknown Team",
+          track: (details as any).track ?? (details as any).track_id ?? "-",
+        }
+      : null;
+
+    if (teamData) {
       setBreadcrumbs([
         { label: "Teams", href: "/admin/teams" },
-        { label: details.team.name, href: `/admin/teams/${teamId}` },
+        { label: teamData.team_name, href: `/admin/teams/${teamId}` },
       ]);
     }
   }, [details, teamId]);
 
   if (isLoading) return <div className="p-8">Loading team details...</div>;
-  if (!details || !details.team)
-    return <div className="p-8">Team not found</div>;
+  if (!details) return <div className="p-8">Team not found</div>;
 
-  const { team, history } = details;
+  const team = details.team ?? {
+    id: (details as any).id ?? teamId,
+    team_name: (details as any).team_name ?? "Unknown Team",
+    track: (details as any).track ?? (details as any).track_id ?? "-",
+  };
+  const history = (details as any).history ?? (details as any).history ?? [];
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -65,7 +79,7 @@ export default function TeamDetailsPage() {
       <header className="flex items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-3">
-            {team.name}
+            {team.team_name}
             <Badge variant="outline">{team.track}</Badge>
           </h1>
         </div>

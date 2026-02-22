@@ -135,7 +135,7 @@ async function GETHandler(request: NextRequest) {
           _id: submission._id,
           file_url: submission.file_url,
           github_link: submission.github_link,
-          submission_text: submission.overview,
+          overview: submission.overview,
           submitted_at: submission.submitted_at,
         };
       }
@@ -169,13 +169,14 @@ async function GETHandler(request: NextRequest) {
       track_id: (team.track_id as any)?._id?.toString() || null,
       current_round: activeRound
         ? {
-            _id: activeRound._id,
-            round_number: activeRound.round_number,
-            start_time: activeRound.start_time,
-            end_time: activeRound.end_time,
-            is_active: activeRound.is_active,
-            instructions: activeRound.instructions,
-          }
+          _id: activeRound._id,
+          round_number: activeRound.round_number,
+          start_time: activeRound.start_time,
+          end_time: activeRound.end_time,
+          is_active: activeRound.is_active,
+          submission_enabled: activeRound.submission_enabled,
+          instructions: activeRound.instructions,
+        }
         : null,
       current_round_subtask: currentRoundSubtask,
       current_round_submission: currentRoundSubmission,
