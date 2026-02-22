@@ -36,7 +36,9 @@ import {
   useUpdateJudgeMutation,
   useAssignTeamsToJudgeMutation,
   useGetJudgeAssignmentsForRoundQuery,
+  useGetTracksQuery,
 } from "@/lib/redux/api/adminApi";
+import { skipToken } from "@reduxjs/toolkit/query";
 import { toast } from "sonner";
 import {
   Select,
@@ -80,7 +82,9 @@ export default function AdminJudgesPage() {
   const { data: teams = [], isLoading: isLoadingTeams } =
     useGetAdminTeamsQuery();
   const { data: rounds = [] } = useGetAdminRoundsQuery();
+  const { data: tracks = [] } = useGetTracksQuery();
   const [createJudge] = useCreateJudgeMutation();
+  const [newJudgeTrackId, setNewJudgeTrackId] = useState("");
   const [updateJudge] = useUpdateJudgeMutation();
   const [deleteJudge] = useDeleteJudgeMutation();
   const [assignTeams] = useAssignTeamsToJudgeMutation();
@@ -94,10 +98,18 @@ export default function AdminJudgesPage() {
 
     setIsAddingJudge(true);
     try {
-      await createJudge({ name: newJudgeName, email: newJudgeEmail }).unwrap();
+      let track_id: string | undefined = newJudgeTrackId || undefined;
+      if (!track_id && tracks.length > 0) {
+        // If admin typed a track name into input previously, try to match by name
+        const matched = tracks.find((t: any) => t.name === newJudgeTrackId || t.id === newJudgeTrackId || t._id === newJudgeTrackId);
+        if (matched) track_id = matched.id || matched._id;
+      }
+
+      await createJudge({ judge_name: newJudgeName, email: newJudgeEmail, track_id }).unwrap();
       toast.success(`Judge ${newJudgeName} added successfully!`);
       setNewJudgeName("");
       setNewJudgeEmail("");
+      setNewJudgeTrackId("");
       setCreateDialogOpen(false);
     } catch (error) {
       console.error("Failed to add judge:", error);
@@ -111,24 +123,23 @@ export default function AdminJudgesPage() {
   const selectedJudge = judges.find((j) => j.id === selectedJudgeId);
   const [tempAssignedTeams, setTempAssignedTeams] = useState<string[]>([]);
 
-  // Fetch assignments for the selected round
+  // Fetch assignments for the selected round (use skipToken when no round selected)
   const { data: roundAssignments } = useGetJudgeAssignmentsForRoundQuery(
-    selectedRound || "",
-    { skip: !selectedRound },
+    selectedRound ?? skipToken,
   );
 
   const currentJudgeRoundTeams = useMemo(() => {
     if (!roundAssignments?.assignments || !selectedJudgeId) return [];
     return roundAssignments.assignments
-      .filter((assignment) => assignment.judgeId === selectedJudgeId)
-      .map((assignment) => assignment.teamId);
+      .filter((assignment) => assignment.judge_id === selectedJudgeId)
+      .map((assignment) => assignment.team_id);
   }, [roundAssignments, selectedJudgeId]);
 
   const disabledTeamIds = useMemo(() => {
     if (!roundAssignments?.assignments || !selectedJudgeId) return [];
     return roundAssignments.assignments
-      .filter((assignment) => assignment.judgeId !== selectedJudgeId)
-      .map((assignment) => assignment.teamId);
+      .filter((assignment) => assignment.judge_id !== selectedJudgeId)
+      .map((assignment) => assignment.team_id);
   }, [roundAssignments, selectedJudgeId]);
 
   useEffect(() => {
@@ -164,16 +175,31 @@ export default function AdminJudgesPage() {
     if (!selectedJudgeId || !selectedRound) return;
     setIsAssigningTeams(true);
     try {
-      await assignTeams({
+      // Ensure we always send an array of strings for team_ids
+      const payloadTeamIds = Array.isArray(tempAssignedTeams)
+        ? tempAssignedTeams.map((t) => String(t))
+        : tempAssignedTeams
+        ? [String(tempAssignedTeams)]
+        : [];
+
+      const payload = {
         judgeId: selectedJudgeId,
-        teamIds: tempAssignedTeams,
+        teamIds: payloadTeamIds,
         roundId: selectedRound,
-      }).unwrap();
+      };
+
+      console.debug("Assigning teams payload:", payload);
+
+      await assignTeams(payload).unwrap();
       toast.success("Assignments updated successfully");
       setShowAssignmentModal(false);
     } catch (error) {
-      console.error("Failed to assign teams:", error);
-      toast.error("Failed to assign teams");
+      const e: any = error;
+      const serverMsg = e?.data?.error || e?.data?.message || e?.message;
+      console.error("Failed to assign teams:", error, "serverMsg:", serverMsg);
+      toast.error(
+        serverMsg ? String(serverMsg).slice(0, 200) : "Failed to assign teams",
+      );
     } finally {
       setIsAssigningTeams(false);
     }
@@ -182,7 +208,7 @@ export default function AdminJudgesPage() {
   // Handle edit judge dialog open
   const handleEditClick = (judge: any) => {
     setEditJudgeId(judge.id);
-    setEditJudgeName(judge.name);
+    setEditJudgeName(judge.judge_name);
     setEditJudgeEmail(judge.email || "");
     setEditDialogOpen(true);
   };
@@ -243,7 +269,7 @@ export default function AdminJudgesPage() {
 
   // Get assigned team names
   const getAssignedTeamNames = (teamIds: string[] = []) => {
-    return teamIds.map((id) => teams.find((t) => t.id === id)?.name || id);
+    return teamIds.map((id) => teams.find((t) => t.id === id)?.team_name || id);
   };
 
   return (
@@ -301,6 +327,29 @@ export default function AdminJudgesPage() {
                     onChange={(e) => setNewJudgeEmail(e.target.value)}
                     placeholder="judge@example.com"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Track</Label>
+                  {tracks.length > 0 ? (
+                    <Select value={newJudgeTrackId} onValueChange={setNewJudgeTrackId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Track" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tracks.map((t: any) => (
+                          <SelectItem key={t.id || t._id} value={t.id || t._id}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={newJudgeTrackId}
+                      onChange={(e) => setNewJudgeTrackId(e.target.value)}
+                      placeholder="Track id or name"
+                    />
+                  )}
                 </div>
               </div>
               <DialogFooter>
@@ -371,11 +420,11 @@ export default function AdminJudgesPage() {
                       className="border-border/50 transition-colors"
                     >
                       <TableCell className="font-medium">
-                        {judge.name}
+                        {judge.judge_name}
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">
-                        {judge.assignedTeamsCount || 0} teams
+                        {judge.teams_count || 0} teams
                       </TableCell>
 
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -444,7 +493,7 @@ export default function AdminJudgesPage() {
                   <div>
                     <CardTitle className="text-2xl">Assign Teams</CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Select teams for {selectedJudge.name}
+                      Select teams for {selectedJudge.judge_name}
                     </p>
                   </div>
                   <Button
@@ -532,7 +581,7 @@ export default function AdminJudgesPage() {
                                 )}
                               >
                                 <span className="font-medium text-foreground">
-                                  {team.name}
+                                  {team.team_name}
                                 </span>
 
                                 {isAssigned && (
