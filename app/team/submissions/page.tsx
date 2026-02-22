@@ -147,7 +147,9 @@ export default function TeamSubmissionsPage() {
                       </td>
 
                       <td className="px-6 py-4 text-muted-foreground">
-                        {new Date(sub.submitted_at).toLocaleString()}
+                        {sub.submitted_at
+                          ? new Date(sub.submitted_at).toLocaleString()
+                          : "—"}
                       </td>
 
                       <td className="px-6 py-4">

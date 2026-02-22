@@ -40,8 +40,13 @@ export default function RoundInteraction({
       try {
         const data = await selectSubtask({ roundId: roundId!, subtaskId: id }).unwrap();
         
+        // server may return { selection: { subtask_id } } or { selected: subtaskId }
         if (data?.selection) {
           setSelectedId(data.selection.subtask_id?.toString() ?? id);
+          setLocked(true);
+          window.location.reload();
+        } else if (data?.selected) {
+          setSelectedId(data.selected?.toString() ?? id);
           setLocked(true);
           window.location.reload();
         }
