@@ -32,20 +32,28 @@ import {
   useGetAdminTeamsQuery,
   useCreateTeamMutation,
 } from "@/lib/redux/api/adminApi";
+import { useGetTracksQuery } from "@/lib/redux/api/adminApi";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 // Define team type based on API response
 type Team = {
   id: string;
-  name: string;
+  team_name: string;
   track: string;
-  currentRoundId: string | null;
-  currentRoundName: string | null;
+  current_round_id: string | null;
+  current_round_name: string | null;
   score: number | null;
-  submissionStatus: string; // 'submitted' | 'pending' | 'locked'
-  isLocked: boolean;
-  isShortlisted: boolean;
-  isEliminated: boolean;
+  submission_status: string; // 'submitted' | 'pending' | 'locked'
+  is_locked: boolean;
+  is_shortlisted: boolean;
+  is_eliminated: boolean;
 };
 
 export default function AdminTeamsPage() {
@@ -62,30 +70,39 @@ export default function AdminTeamsPage() {
   });
   const [createTeam] = useCreateTeamMutation();
 
-  // Extract all unique rounds from teams' roundScores
+  // Extract all unique rounds from teams' round_scores
   const allRounds = Array.from(
     new Map(
       teams
-        .flatMap((t: any) => t.roundScores || [])
+        .flatMap((t: any) => t.round_scores || [])
         .map((r: any) => [
-          r.roundId,
-          { roundId: r.roundId, roundNumber: r.roundNumber },
+          r.round_id,
+          { round_id: r.round_id, round_number: r.round_number },
         ]),
     ).values(),
-  ).sort((a: any, b: any) => a.roundNumber - b.roundNumber);
+  ).sort((a: any, b: any) => a.round_number - b.round_number);
 
   // Create Team Logic
   const [createOpen, setCreateOpen] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamEmail, setNewTeamEmail] = useState("");
   const [newTeamTrack, setNewTeamTrack] = useState("");
+  const { data: tracks = [] } = useGetTracksQuery();
 
   const handleCreateTeam = async () => {
     try {
+      // Determine track_id: if user selected an id use it, otherwise try to match by name
+      let track_id = newTeamTrack;
+      if (!track_id && tracks.length > 0) {
+        // try to match by name
+        const matched = tracks.find((t: any) => t.name === newTeamTrack || t.id === newTeamTrack);
+        if (matched) track_id = matched.id || matched._id;
+      }
+
       await createTeam({
-        name: newTeamName,
+        team_name: newTeamName,
         email: newTeamEmail,
-        track: newTeamTrack,
+        track_id,
       }).unwrap();
 
       toast.success("Team created successfully");
@@ -156,12 +173,27 @@ export default function AdminTeamsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="track">Track</Label>
-                  <Input
-                    id="track"
-                    value={newTeamTrack}
-                    onChange={(e) => setNewTeamTrack(e.target.value)}
-                    placeholder="e.g. AI/ML"
-                  />
+                    {tracks.length > 0 ? (
+                      <Select value={newTeamTrack} onValueChange={setNewTeamTrack}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Track" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tracks.map((t: any) => (
+                            <SelectItem key={t.id || t._id} value={t.id || t._id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="track"
+                        value={newTeamTrack}
+                        onChange={(e) => setNewTeamTrack(e.target.value)}
+                        placeholder="e.g. AI/ML"
+                      />
+                    )}
                 </div>
               </div>
               <DialogFooter>
@@ -189,10 +221,10 @@ export default function AdminTeamsPage() {
                   <TableHead className="font-semibold">Current round</TableHead>
                   {allRounds.map((round: any) => (
                     <TableHead
-                      key={round.roundId}
+                      key={round.round_id}
                       className="font-semibold text-center"
                     >
-                      Round {round.roundNumber} Score
+                      Round {round.round_number} Score
                     </TableHead>
                   ))}
                   <TableHead className="font-semibold text-center">
@@ -217,7 +249,7 @@ export default function AdminTeamsPage() {
                       </TableCell>
 
                       {allRounds.map((round: any) => (
-                        <TableCell key={round.roundId} className="text-center">
+                        <TableCell key={round.round_id} className="text-center">
                           <Skeleton className="mx-auto h-4 w-10 rounded-md" />
                         </TableCell>
                       ))}
@@ -241,21 +273,21 @@ export default function AdminTeamsPage() {
                       key={team.id}
                       className="border-border/50 transition-colors hover:bg-muted/50"
                     >
-                      <TableCell className="font-medium">{team.name}</TableCell>
+                      <TableCell className="font-medium">{team.team_name}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {team.track ?? "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {team.currentRoundName ?? "—"}
+                        {team.current_round_name ?? "—"}
                       </TableCell>
 
                       {allRounds.map((round: any) => {
-                        const roundScore = team.roundScores?.find(
-                          (rs: any) => rs.roundId === round.roundId
+                        const roundScore = team.round_scores?.find(
+                          (rs: any) => rs.round_id === round.round_id
                         );
                         return (
                           <TableCell
-                            key={round.roundId}
+                            key={round.round_id}
                             className="text-center font-medium"
                           >
                             {roundScore?.score ?? "—"}
@@ -264,14 +296,14 @@ export default function AdminTeamsPage() {
                       })}
 
                       <TableCell className="text-center font-semibold">
-                        {team.roundScores?.reduce(
+                        {team.round_scores?.reduce(
                           (sum: number, rs: any) => sum + (rs.score || 0),
                           0
                         ) ?? "—"}
                       </TableCell>
 
                       <TableCell>
-                        <Badge>{team.submissionStatus}</Badge>
+                        <Badge>{team.submission_status}</Badge>
                       </TableCell>
 
                       <TableCell>

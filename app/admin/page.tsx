@@ -61,8 +61,8 @@ export default function AdminDashboardPage() {
   const loading = statsLoading || roundsLoading || !stats;
 
   useEffect(() => {
-    if (stats?.currentRound && !selectedRoundId) {
-      setSelectedRoundId(stats.currentRound.id);
+    if (stats?.current_round && !selectedRoundId) {
+      setSelectedRoundId(stats.current_round.id);
     }
   }, [stats, selectedRoundId]);
 
@@ -115,10 +115,10 @@ export default function AdminDashboardPage() {
   };
 
   const evaluationData = [
-    { name: "Submitted", value: stats?.submissionsCount || 0, fill: "#10b981" },
+    { name: "Submitted", value: stats?.submissions_count || 0, fill: "#10b981" },
     {
       name: "Pending",
-      value: stats?.pendingEvaluationCount || 0,
+      value: stats?.pending_evaluation_count || 0,
       fill: "#f59e0b",
     },
   ];
@@ -148,7 +148,7 @@ export default function AdminDashboardPage() {
               </>
             ) : (
               <>
-                <p className="text-3xl font-bold">{stats.totalTeams}</p>
+                <p className="text-3xl font-bold">{stats.total_teams}</p>
                 <p className="text-sm text-muted-foreground">
                   total registered teams
                 </p>
@@ -176,7 +176,7 @@ export default function AdminDashboardPage() {
                 <div className="rounded-xl border p-4">
                   <p className="text-sm text-muted-foreground">Submissions</p>
                   <p className="text-2xl font-semibold">
-                    {stats.submissionsCount}
+                    {stats.submissions_count}
                   </p>
                 </div>
                 <div className="rounded-xl border p-4">
@@ -184,7 +184,7 @@ export default function AdminDashboardPage() {
                     Pending evaluation
                   </p>
                   <p className="text-2xl font-semibold">
-                    {stats.pendingEvaluationCount}
+                    {stats.pending_evaluation_count}
                   </p>
                 </div>
               </div>
@@ -243,9 +243,9 @@ export default function AdminDashboardPage() {
                   data={[
                     {
                       name: "Teams",
-                      active: Math.floor(stats.totalTeams * 0.6),
-                      shortlisted: Math.floor(stats.totalTeams * 0.25),
-                      eliminated: Math.floor(stats.totalTeams * 0.15),
+                      active: Math.floor(stats.total_teams * 0.6),
+                      shortlisted: Math.floor(stats.total_teams * 0.25),
+                      eliminated: Math.floor(stats.total_teams * 0.15),
                     },
                   ]}
                   layout="vertical"
@@ -281,19 +281,19 @@ export default function AdminDashboardPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {stats?.topTeams?.map((team, i) => (
+                {stats?.top_teams?.map((team: any, i: number) => (
                   <div
                     key={team.id}
                     className="flex items-center justify-between rounded-lg border p-4"
                   >
                     <div>
-                      <p className="font-medium">{team.name}</p>
+                      <p className="font-medium">{team.team_name}</p>
                       <p className="text-xs text-muted-foreground">
                         {team.track}
                       </p>
                     </div>
                     <p className="font-semibold">
-                      {team.cumulativeScore}
+                      {team.cumulative_score}
                     </p>
                   </div>
                 ))}

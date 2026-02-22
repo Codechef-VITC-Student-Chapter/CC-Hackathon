@@ -53,7 +53,9 @@ import {
 import { toast } from "sonner";
 
 export default function AdminRoundsPage() {
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    setMounted(true);
     setBreadcrumbs([{ label: "Rounds", href: "/admin/rounds" }]);
   }, []);
 
@@ -126,7 +128,7 @@ export default function AdminRoundsPage() {
   };
 
   const formatDateTime = (v?: string | null) => {
-    if (!v) return "—";
+    if (!v || !mounted) return "—";
     const d = new Date(v);
     return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
   };
@@ -153,79 +155,81 @@ export default function AdminRoundsPage() {
             All rounds
           </CardTitle>
 
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 rounded-xl">
-                <Plus className="h-4 w-4" />
-                Create round
-              </Button>
-            </DialogTrigger>
+          {mounted && (
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 rounded-xl">
+                  <Plus className="h-4 w-4" />
+                  Create round
+                </Button>
+              </DialogTrigger>
 
-            <DialogContent className="rounded-2xl sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Create new round</DialogTitle>
-                <DialogDescription>
-                  Enter the round number and optional instructions.
-                </DialogDescription>
-              </DialogHeader>
+              <DialogContent className="rounded-2xl sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Create new round</DialogTitle>
+                  <DialogDescription>
+                    Enter the round number and optional instructions.
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="round-number">Round Number</Label>
-                  <Input
-                    id="round-number"
-                    type="number"
-                    value={roundNumber}
-                    onChange={(e) => setRoundNumber(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="instructions">Instructions</Label>
-                  <Input
-                    id="instructions"
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="start-time">Start Time</Label>
+                    <Label htmlFor="round-number">Round Number</Label>
                     <Input
-                      id="start-time"
-                      type="datetime-local"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
+                      id="round-number"
+                      type="number"
+                      value={roundNumber}
+                      onChange={(e) => setRoundNumber(e.target.value)}
                     />
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="end-time">End Time</Label>
+                    <Label htmlFor="instructions">Instructions</Label>
                     <Input
-                      id="end-time"
-                      type="datetime-local"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
+                      id="instructions"
+                      value={instructions}
+                      onChange={(e) => setInstructions(e.target.value)}
                     />
                   </div>
-                </div>
-              </div>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreateRound} disabled={!roundNumber}>
-                  Create
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="start-time">Start Time</Label>
+                      <Input
+                        id="start-time"
+                        type="datetime-local"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="end-time">End Time</Label>
+                      <Input
+                        id="end-time"
+                        type="datetime-local"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateRound} disabled={!roundNumber}>
+                    Create
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
 
         <CardContent>
           <div className="max-h-[36rem] overflow-auto rounded-xl border border-border/50">
-            {isLoading ? (
+            {!mounted || isLoading ? (
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/50">
