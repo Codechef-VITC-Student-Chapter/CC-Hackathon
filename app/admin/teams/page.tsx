@@ -1,11 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -14,272 +12,314 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Eye, Users, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import { setBreadcrumbs } from "@/lib/hooks/useBreadcrumb";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingState } from "@/components/loading-state";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, ListPlus, Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   useGetAdminTeamsQuery,
+  useGetAdminRoundsQuery,
+  useGetTracksQuery,
   useCreateTeamMutation,
+  useDeleteTeamMutation,
+  useBatchCreateTeamsMutation,
 } from "@/lib/redux/api/adminApi";
-import { toast } from "sonner";
 
-// Define team type based on API response
-type Team = {
-  id: string;
-  name: string;
-  track: string;
-  currentRoundId: string | null;
-  currentRoundName: string | null;
-  score: number | null;
-  submissionStatus: string; // 'submitted' | 'pending' | 'locked'
-  isLocked: boolean;
-  isShortlisted: boolean;
-  isEliminated: boolean;
-};
+interface BatchRow {
+  team_name: string;
+  email: string;
+  track_id: string;
+}
 
-export default function AdminTeamsPage() {
-  // Set breadcrumbs
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Teams", href: "/admin/teams" }]);
-  }, []);
+export default function TeamsPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  // RTK Query Hooks
-  const { data: teams = [], isLoading } = useGetAdminTeamsQuery(undefined, {
-    pollingInterval: 30000, // Poll every 30s
-    refetchOnFocus: true,
-    refetchOnMountOrArgChange: true,
-  });
+  const router = useRouter();
+  const { data: teams = [], isLoading } = useGetAdminTeamsQuery();
+  const { data: rounds = [] } = useGetAdminRoundsQuery();
+  const { data: tracks = [] } = useGetTracksQuery();
   const [createTeam] = useCreateTeamMutation();
+  const [deleteTeam] = useDeleteTeamMutation();
+  const [batchCreateTeams] = useBatchCreateTeamsMutation();
 
-  // Extract all unique rounds from teams' roundScores
-  const allRounds = Array.from(
-    new Map(
-      teams
-        .flatMap((t: any) => t.roundScores || [])
-        .map((r: any) => [
-          r.roundId,
-          { roundId: r.roundId, roundNumber: r.roundNumber },
-        ]),
-    ).values(),
-  ).sort((a: any, b: any) => a.roundNumber - b.roundNumber);
-
-  // Create Team Logic
+  // Create single team state
   const [createOpen, setCreateOpen] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamEmail, setNewTeamEmail] = useState("");
-  const [newTeamTrack, setNewTeamTrack] = useState("");
+  const [newTeamTrackId, setNewTeamTrackId] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Batch create state
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([{ team_name: "", email: "", track_id: "" }]);
+  const [isBatchCreating, setIsBatchCreating] = useState(false);
+
+  // Derive all unique round numbers from team scores for table columns
+  const allRounds = Array.from(
+    new Set(
+      teams.flatMap((t) => (t.round_scores ?? []).map((rs) => rs.round_number ?? rs.round_id))
+    )
+  ).sort();
 
   const handleCreateTeam = async () => {
+    if (!newTeamName || !newTeamEmail || !newTeamTrackId) {
+      toast.error("Please fill all fields");
+      return;
+    }
+    setIsCreating(true);
     try {
-      await createTeam({
-        name: newTeamName,
-        email: newTeamEmail,
-        track: newTeamTrack,
-      }).unwrap();
-
-      toast.success("Team created successfully");
+      await createTeam({ team_name: newTeamName, email: newTeamEmail, track_id: newTeamTrackId }).unwrap();
+      toast.success("Team created");
       setCreateOpen(false);
       setNewTeamName("");
       setNewTeamEmail("");
-      setNewTeamTrack("");
-    } catch (error) {
-      console.error("Error creating team:", error);
+      setNewTeamTrackId("");
+    } catch {
       toast.error("Error creating team");
+    } finally {
+      setIsCreating(false);
     }
   };
 
-  return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          Teams
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          View and manage team details across all rounds.
-        </p>
-      </header>
+  const handleDeleteTeam = async (id: string) => {
+    if (!confirm("Delete this team?")) return;
+    try {
+      await deleteTeam(id).unwrap();
+      toast.success("Team deleted");
+    } catch {
+      toast.error("Error deleting team");
+    }
+  };
 
-      <Card
-        className={cn(
-          "overflow-hidden border-white/10 bg-card/80 shadow-lg backdrop-blur-sm",
-          "dark:border-white/10 dark:bg-card/80",
-        )}
-      >
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Users className="size-5 text-muted-foreground" />
-            All teams
-          </CardTitle>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+  const handleBatchCreate = async () => {
+    const valid = batchRows.filter((r) => r.team_name && r.email && r.track_id);
+    if (valid.length === 0) {
+      toast.error("Please fill at least one complete row");
+      return;
+    }
+    setIsBatchCreating(true);
+    try {
+      await batchCreateTeams({ teams: valid }).unwrap();
+      toast.success(`${valid.length} teams created`);
+      setBatchOpen(false);
+      setBatchRows([{ team_name: "", email: "", track_id: "" }]);
+    } catch {
+      toast.error("Error creating teams");
+    } finally {
+      setIsBatchCreating(false);
+    }
+  };
+
+  const updateBatchRow = (index: number, field: keyof BatchRow, value: string) => {
+    setBatchRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  };
+
+  const addBatchRow = () => setBatchRows((prev) => [...prev, { team_name: "", email: "", track_id: "" }]);
+  const removeBatchRow = (index: number) =>
+    setBatchRows((prev) => prev.filter((_, i) => i !== index));
+
+  if (!mounted || isLoading) return <LoadingState message="Loading teams..." />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Teams</h1>
+        <div className="flex items-center gap-2">
+          {/* Batch create */}
+          <Dialog open={batchOpen} onOpenChange={setBatchOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 rounded-xl">
-                <Plus className="size-4" /> Create Team
+              <Button variant="outline" className="gap-2">
+                <ListPlus className="size-4" /> Batch Add
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="max-w-3xl">
               <DialogHeader>
-                <DialogTitle>Create New Team</DialogTitle>
-                <DialogDescription>
-                  Enter the team name and track.
-                </DialogDescription>
+                <DialogTitle>Batch Create Teams</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Team Name</Label>
-                  <Input
-                    id="name"
-                    value={newTeamName}
-                    onChange={(e) => setNewTeamName(e.target.value)}
-                    placeholder="e.g. CodeWizards"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Leader Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newTeamEmail}
-                    onChange={(e) => setNewTeamEmail(e.target.value)}
-                    placeholder="leader@example.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="track">Track</Label>
-                  <Input
-                    id="track"
-                    value={newTeamTrack}
-                    onChange={(e) => setNewTeamTrack(e.target.value)}
-                    placeholder="e.g. AI/ML"
-                  />
-                </div>
+              <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto pr-1">
+                {batchRows.map((row, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                    <div className="space-y-1">
+                      {i === 0 && <Label className="text-xs">Team Name</Label>}
+                      <Input
+                        placeholder="Team name"
+                        value={row.team_name}
+                        onChange={(e) => updateBatchRow(i, "team_name", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      {i === 0 && <Label className="text-xs">Email</Label>}
+                      <Input
+                        type="email"
+                        placeholder="Email"
+                        value={row.email}
+                        onChange={(e) => updateBatchRow(i, "email", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      {i === 0 && <Label className="text-xs">Track</Label>}
+                      <Select value={row.track_id} onValueChange={(v) => updateBatchRow(i, "track_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select track" /></SelectTrigger>
+                        <SelectContent>
+                          {tracks.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => removeBatchRow(i)}
+                      disabled={batchRows.length === 1}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={addBatchRow} className="gap-2 mt-2">
+                  <Plus className="size-4" /> Add Row
+                </Button>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateTeam}
-                  disabled={!newTeamName || !newTeamEmail}
-                  className="rounded-xl"
-                >
-                  Create Team
+                <Button variant="outline" onClick={() => setBatchOpen(false)}>Cancel</Button>
+                <Button onClick={handleBatchCreate} disabled={isBatchCreating}>
+                  {isBatchCreating ? "Creating..." : `Create ${batchRows.filter((r) => r.team_name && r.email && r.track_id).length} teams`}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Single create */}
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="size-4" /> Add Team</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add Team</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Team Name</Label>
+                  <Input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Team name" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" value={newTeamEmail} onChange={(e) => setNewTeamEmail(e.target.value)} placeholder="team@example.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Track</Label>
+                  <Select value={newTeamTrackId} onValueChange={setNewTeamTrackId}>
+                    <SelectTrigger><SelectValue placeholder="Select track" /></SelectTrigger>
+                    <SelectContent>
+                      {tracks.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreateTeam} disabled={isCreating}>
+                  {isCreating ? "Creating..." : "Create"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Teams ({teams.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-150 overflow-auto rounded-xl border border-border/50">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-border/50 hover:bg-transparent">
-                  <TableHead className="font-semibold">Team</TableHead>
-                  <TableHead className="font-semibold">Track</TableHead>
-                  <TableHead className="font-semibold">Current round</TableHead>
-                  {allRounds.map((round: any) => (
-                    <TableHead
-                      key={round.roundId}
-                      className="font-semibold text-center"
-                    >
-                      Round {round.roundNumber} Score
-                    </TableHead>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Track</TableHead>
+                  {rounds.map((r) => (
+                    <TableHead key={r._id} className="text-right">Rd {r.round_number}</TableHead>
                   ))}
-                  <TableHead className="font-semibold text-center">
-                    Total Score
-                  </TableHead>
-                  <TableHead className="font-semibold">Status</TableHead>
-                  <TableHead className="font-semibold">Action</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={i} className="border-border/50">
-                      <TableCell>
-                        <Skeleton className="h-4 w-32 rounded-md" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20 rounded-md" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24 rounded-md" />
-                      </TableCell>
-
-                      {allRounds.map((round: any) => (
-                        <TableCell key={round.roundId} className="text-center">
-                          <Skeleton className="mx-auto h-4 w-10 rounded-md" />
-                        </TableCell>
-                      ))}
-
-                      <TableCell className="text-center">
-                        <Skeleton className="mx-auto h-4 w-12 rounded-md" />
-                      </TableCell>
-
-                      <TableCell>
-                        <Skeleton className="h-6 w-24 rounded-full" />
-                      </TableCell>
-
-                      <TableCell>
-                        <Skeleton className="h-8 w-20 rounded-lg" />
-                      </TableCell>
-                    </TableRow>
-                  ))
+                {teams.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3 + rounds.length} className="text-center text-muted-foreground py-8">
+                      No teams yet
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  teams.map((team: any) => (
-                    <TableRow
-                      key={team.id}
-                      className="border-border/50 transition-colors hover:bg-muted/50"
-                    >
-                      <TableCell className="font-medium">{team.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {team.track ?? "—"}
+                  teams.map((team) => (
+                    <TableRow key={team.id}>
+                      <TableCell>
+                        <a
+                          href={`/admin/teams/${team.id}`}
+                          className="font-medium hover:underline text-primary"
+                        >
+                          {team.team_name}
+                        </a>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {team.currentRoundName ?? "—"}
+                      <TableCell>
+                        {team.track ? (
+                          <Badge variant="outline">{team.track}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
                       </TableCell>
-
-                      {allRounds.map((round: any) => {
-                        const roundScore = team.roundScores?.find(
-                          (rs: any) => rs.roundId === round.roundId
+                      {rounds.map((r) => {
+                        const rs = (team.round_scores ?? []).find(
+                          (s) => s.round_id === r._id
                         );
                         return (
-                          <TableCell
-                            key={round.roundId}
-                            className="text-center font-medium"
-                          >
-                            {roundScore?.score ?? "—"}
+                          <TableCell key={r._id} className="text-right tabular-nums">
+                            {rs?.score != null ? (
+                              <span className="font-semibold">{rs.score}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                         );
                       })}
-
-                      <TableCell className="text-center font-semibold">
-                        {team.roundScores?.reduce(
-                          (sum: number, rs: any) => sum + (rs.score || 0),
-                          0
-                        ) ?? "—"}
-                      </TableCell>
-
                       <TableCell>
-                        <Badge>{team.submissionStatus}</Badge>
-                      </TableCell>
-
-                      <TableCell>
-                        <Link href={`/admin/teams/${team.id}`}>
-                          <Button variant="ghost" size="sm" className="gap-2 rounded-lg">
-                            <Eye className="size-4" /> View
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View details"
+                            onClick={() => router.push(`/admin/teams/${team.id}`)}
+                          >
+                            <Eye className="size-4" />
                           </Button>
-                        </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            title="Delete team"
+                            onClick={() => handleDeleteTeam(team.id)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

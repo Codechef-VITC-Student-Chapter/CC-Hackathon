@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -25,17 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Plus,
-  ListOrdered,
-  PlayCircle,
-  StopCircle,
-  Upload,
-  Edit,
-  Trash2,
-  CheckCircle2,
-  XCircle,
-} from "lucide-react";
+import { Plus, ListOrdered, PlayCircle, StopCircle, Edit, Trash2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -47,14 +37,17 @@ import { setBreadcrumbs } from "@/lib/hooks/useBreadcrumb";
 import {
   useGetAdminRoundsQuery,
   useCreateRoundMutation,
-  useUpdateRoundMutation,
+  useToggleRoundStatusMutation,
   useDeleteRoundMutation,
 } from "@/lib/redux/api/adminApi";
 import { toast } from "sonner";
 
 export default function AdminRoundsPage() {
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setBreadcrumbs([{ label: "Rounds", href: "/admin/rounds" }]);
+    setMounted(true);
   }, []);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -65,7 +58,7 @@ export default function AdminRoundsPage() {
 
   const { data: rounds = [], isLoading } = useGetAdminRoundsQuery();
   const [createRound] = useCreateRoundMutation();
-  const [updateRound] = useUpdateRoundMutation();
+  const [toggleRoundStatus] = useToggleRoundStatusMutation();
   const [deleteRound] = useDeleteRoundMutation();
 
   const handleCreateRound = async () => {
@@ -90,7 +83,7 @@ export default function AdminRoundsPage() {
 
   const handleStartRound = async (id: string) => {
     try {
-      await updateRound({ id, body: { is_active: true } }).unwrap();
+      await toggleRoundStatus({ id, action: "start" }).unwrap();
       toast.success("Round started");
     } catch {
       toast.error("Failed to start round");
@@ -99,21 +92,10 @@ export default function AdminRoundsPage() {
 
   const handleStopRound = async (id: string) => {
     try {
-      await updateRound({ id, body: { is_active: false } }).unwrap();
+      await toggleRoundStatus({ id, action: "stop" }).unwrap();
       toast.success("Round stopped");
     } catch {
       toast.error("Failed to stop round");
-    }
-  };
-
-  const handleToggleSubmission = async (id: string) => {
-    const round = rounds.find((r: any) => r._id === id);
-    if (!round) return;
-    try {
-      await updateRound({ id, body: { submission_enabled: !round.submission_enabled } }).unwrap();
-      toast.success("Submission status updated");
-    } catch {
-      toast.error("Failed to toggle submission");
     }
   };
 
@@ -133,22 +115,18 @@ export default function AdminRoundsPage() {
     return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
   };
 
+  if (!mounted) return null;
+
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Rounds
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Rounds</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage all rounds and open details to edit subtasks and teams.
         </p>
       </header>
 
-      <Card
-        className={cn(
-          "overflow-hidden border-border bg-card/80 backdrop-blur-sm",
-        )}
-      >
+      <Card className={cn("overflow-hidden border-border bg-card/80 backdrop-blur-sm")}>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2 text-lg">
             <ListOrdered className="h-5 w-5 text-muted-foreground" />
@@ -230,7 +208,7 @@ export default function AdminRoundsPage() {
             {isLoading ? (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border/50">
+                  <TableRow>
                     <TableHead>Round</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Start time</TableHead>
@@ -238,32 +216,15 @@ export default function AdminRoundsPage() {
                     <TableHead className="w-12">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-
                 <TableBody>
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={i} className="border-border/50">
-                      <TableCell>
-                        <Skeleton className="h-4 w-24 rounded-md" />
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="space-y-2">
-                          <Skeleton className="h-5 w-20 rounded-full" />
-                          <Skeleton className="h-4 w-32 rounded-md" />
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <Skeleton className="h-4 w-32 rounded-md" />
-                      </TableCell>
-
-                      <TableCell>
-                        <Skeleton className="h-4 w-32 rounded-md" />
-                      </TableCell>
-
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-24 rounded-md" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32 rounded-md" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32 rounded-md" /></TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Skeleton className="h-8 w-8 rounded-lg" />
                           <Skeleton className="h-8 w-8 rounded-lg" />
                           <Skeleton className="h-8 w-8 rounded-lg" />
                           <Skeleton className="h-8 w-8 rounded-lg" />
@@ -288,7 +249,6 @@ export default function AdminRoundsPage() {
                     <TableHead className="w-12">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-
                 <TableBody>
                   {rounds.map((round: any) => (
                     <TableRow key={round._id} className="border-border/50">
@@ -297,31 +257,11 @@ export default function AdminRoundsPage() {
                       </TableCell>
 
                       <TableCell>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            variant={
-                              round.is_active
-                                ? "default"
-                                : round.end_time &&
-                                  new Date() > new Date(round.end_time)
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {round.is_active ? "active" : "inactive"}
-                          </Badge>
-
-                          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                            {round.submission_enabled ? (
-                              <CheckCircle2 className="h-4 w-4 text-primary" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            {round.submission_enabled
-                              ? "Submissions on"
-                              : "Submissions off"}
-                          </span>
-                        </div>
+                        <Badge
+                          variant={round.is_active ? "default" : "outline"}
+                        >
+                          {round.is_active ? "Active" : "Inactive"}
+                        </Badge>
                       </TableCell>
 
                       <TableCell className="text-muted-foreground">
@@ -338,9 +278,7 @@ export default function AdminRoundsPage() {
                               <TooltipTrigger asChild>
                                 <Button
                                   size="icon"
-                                  variant={
-                                    round.is_active ? "secondary" : "default"
-                                  }
+                                  variant={round.is_active ? "secondary" : "default"}
                                   onClick={() =>
                                     round.is_active
                                       ? handleStopRound(round._id)
@@ -356,23 +294,6 @@ export default function AdminRoundsPage() {
                               </TooltipTrigger>
                               <TooltipContent>
                                 {round.is_active ? "Stop round" : "Start round"}
-                              </TooltipContent>
-                            </Tooltip>
-
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  onClick={() =>
-                                    handleToggleSubmission(round._id)
-                                  }
-                                >
-                                  <Upload className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                Toggle submissions
                               </TooltipContent>
                             </Tooltip>
 

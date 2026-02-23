@@ -19,18 +19,18 @@ interface ISeedResult {
 // Configuration - Easily change these values
 const SEED_CONFIG = {
   admin: {
-    email: "sasanklearner@gmail.com",
+    email: "sakthivelanss02@gmail.com",
     role: "admin",
   },
   judge: {
-    email: "sasank.v.16@gmail.com",
+    email: "gowreesh4343@gmail.com",
     role: "judge",
-    name: "Judge Sasank",
+    name: "Gowreesh Judge",
   },
   teamLeader: {
-    email: "sasank.v2023@vitstudent.ac.in",
+    email: "gowreesh287@gmail.com",
     role: "team",
-    teamName: "Code Ninjas",
+    teamName: "TopDevs United",
   },
   teamMembers: [
     { email: "alice@vitstudent.ac.in", name: "Alice Dev Squad" },
