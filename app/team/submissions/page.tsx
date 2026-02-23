@@ -184,7 +184,7 @@ export default function TeamSubmissionsPage() {
                       <td className="px-6 py-4">
                         {sub.score ? (
                           <span className="font-semibold text-primary">
-                            {sub.score.score}/10
+                            {sub.score.score}/100
                           </span>
                         ) : (
                           <span className="text-muted-foreground">

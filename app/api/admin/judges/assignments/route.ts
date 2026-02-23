@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/config/db";
 import Judge from "@/models/Judge";
+import { proxy } from "@/lib/proxy";
 
 // GET: Fetch all judge assignments
-export async function GET(request: Request) {
+async function GETHandler(_request: NextRequest) {
   await connectDB();
 
   try {
@@ -48,3 +49,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = proxy(GETHandler, ["admin"]);

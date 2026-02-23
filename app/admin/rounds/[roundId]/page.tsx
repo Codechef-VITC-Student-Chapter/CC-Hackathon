@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -26,15 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ArrowLeft,
-  Plus,
-  Edit,
-  Trash2,
-  Save,
-  PlayCircle,
-  StopCircle,
-} from "lucide-react";
+import { Plus, Edit, Trash2, Save, PlayCircle, StopCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setBreadcrumbs } from "@/lib/hooks/useBreadcrumb";
 import {
@@ -47,14 +38,18 @@ import {
 } from "@/components/ui/dialog";
 import {
   useGetRoundDetailsQuery,
-  useGetRoundSubtasksQuery,
+  useGetAllSubtasksQuery,
+  useGetTracksQuery,
   useUpdateRoundMutation,
   useCreateSubtaskMutation,
   useUpdateSubtaskMutation,
   useDeleteSubtaskMutation,
+  useToggleRoundStatusMutation,
   useGetRoundTeamsQuery,
   useUpdateRoundTeamsMutation,
+  useAllocateSubtasksToTeamsMutation,
 } from "@/lib/redux/api/adminApi";
+import type { RoundTeam } from "@/lib/redux/api/types";
 import { toast } from "sonner";
 
 export default function RoundDetailsPage() {
@@ -63,20 +58,17 @@ export default function RoundDetailsPage() {
   const roundId = params.roundId as string;
 
   // RTK Query Hooks
-  const { data: round, isLoading: roundLoading } =
-    useGetRoundDetailsQuery(roundId);
-  const { data: subtasks = [], isLoading: subtasksLoading } =
-    useGetRoundSubtasksQuery(roundId);
+  const { data: round, isLoading: roundLoading } = useGetRoundDetailsQuery(roundId);
+  const { data: allSubtasks = [], isLoading: subtasksLoading } = useGetAllSubtasksQuery();
+  const { data: tracks = [] } = useGetTracksQuery();
   const [updateRound] = useUpdateRoundMutation();
   const [createSubtask] = useCreateSubtaskMutation();
   const [updateSubtask] = useUpdateSubtaskMutation();
   const [deleteSubtask] = useDeleteSubtaskMutation();
-
-  const { data: roundTeams, isLoading: roundTeamsLoading } =
-    useGetRoundTeamsQuery(roundId);
+  const [toggleRoundStatus] = useToggleRoundStatusMutation();
+  const { data: roundTeamsData, isLoading: roundTeamsLoading } = useGetRoundTeamsQuery(roundId);
   const [updateRoundTeams] = useUpdateRoundTeamsMutation();
-  const roundTeamSubtasks: any = { assignments: [] }; // Mocked as API doesn't support this yet
-  const [updateRoundTeamSubtasks] = [(arg: any) => ({ unwrap: () => Promise.resolve() })]; // Mocked as API doesn't support this yet
+  const [allocateSubtasks] = useAllocateSubtasksToTeamsMutation();
 
   // Local State for forms
   const [instructions, setInstructions] = useState("");
@@ -85,27 +77,25 @@ export default function RoundDetailsPage() {
   const [createSubtaskOpen, setCreateSubtaskOpen] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [newSubtaskDesc, setNewSubtaskDesc] = useState("");
-  const [newSubtaskTrack, setNewSubtaskTrack] = useState("");
+  const [newSubtaskTrackId, setNewSubtaskTrackId] = useState("");
   const [editSubtaskOpen, setEditSubtaskOpen] = useState(false);
   const [editSubtaskId, setEditSubtaskId] = useState<string | null>(null);
   const [editSubtaskTitle, setEditSubtaskTitle] = useState("");
   const [editSubtaskDesc, setEditSubtaskDesc] = useState("");
-  const [editSubtaskTrack, setEditSubtaskTrack] = useState("");
+  const [editSubtaskTrackId, setEditSubtaskTrackId] = useState("");
   const [isUpdatingSubtask, setIsUpdatingSubtask] = useState(false);
   const [deleteConfirmSubtaskId, setDeleteConfirmSubtaskId] = useState<
     string | null
   >(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeletingSubtask, setIsDeletingSubtask] = useState(false);
+  const [allowedTeamIds, setAllowedTeamIds] = useState<Set<string>>(new Set());
+  const [subtaskAssignments, setSubtaskAssignments] = useState<Record<string, { slot1: string; slot2: string }>>({});
+  const [isSavingShortlist, setIsSavingShortlist] = useState(false);
+  const [isSavingAllotments, setIsSavingAllotments] = useState(false);
   const [submissionToggled, setSubmissionToggled] = useState(false);
-  const [allowedTeamIds, setAllowedTeamIds] = useState<string[]>([]);
-  const [isSavingChanges, setIsSavingChanges] = useState(false);
-  const [teamSubtaskMap, setTeamSubtaskMap] = useState<
-    Record<string, string[]>
-  >({});
 
-  const loading =
-    roundLoading || subtasksLoading || roundTeamsLoading;
+  const loading = roundLoading || subtasksLoading || roundTeamsLoading;
 
   // Initialize form state when data is loaded
   useEffect(() => {
@@ -120,7 +110,6 @@ export default function RoundDetailsPage() {
       ]);
 
       setInstructions(round.instructions || "");
-      setSubmissionToggled(round.submission_enabled ?? false);
       if (round.start_time) {
         const date = new Date(round.start_time);
         const localIso = new Date(
@@ -143,20 +132,24 @@ export default function RoundDetailsPage() {
   }, [round]);
 
   useEffect(() => {
-    if (roundTeams?.allowedTeamIds) {
-      setAllowedTeamIds(roundTeams.allowedTeamIds);
-    }
-  }, [roundTeams]);
-
-  useEffect(() => {
-    if (roundTeamSubtasks?.assignments) {
-      const nextMap: Record<string, string[]> = {};
-      roundTeamSubtasks.assignments.forEach((assignment: any) => {
-        nextMap[assignment.teamId] = assignment.subtaskIds || [];
+    if (roundTeamsData?.teams_by_track) {
+      const allowed = new Set<string>();
+      const assignments: Record<string, { slot1: string; slot2: string }> = {};
+      Object.values(roundTeamsData.teams_by_track).forEach((teams) => {
+        teams.forEach((t) => {
+          if (t.allowed) allowed.add(t.id);
+          if (t.subtask_history?.options?.length) {
+            assignments[t.id] = {
+              slot1: t.subtask_history.options[0]?.id ?? "",
+              slot2: t.subtask_history.options[1]?.id ?? "",
+            };
+          }
+        });
       });
-      setTeamSubtaskMap(nextMap);
+      setAllowedTeamIds(allowed);
+      setSubtaskAssignments(assignments);
     }
-  }, [roundTeamSubtasks]);
+  }, [roundTeamsData]);
 
   const handleUpdateRound = async () => {
     try {
@@ -176,21 +169,16 @@ export default function RoundDetailsPage() {
   };
 
   const handleCreateSubtask = async () => {
+    if (!newSubtaskTitle || !newSubtaskDesc || !newSubtaskTrackId) {
+      toast.error("Please fill in all fields");
+      return;
+    }
     try {
-      await createSubtask({
-        round_id: roundId,
-        title: newSubtaskTitle,
-        description: newSubtaskDesc,
-        track: newSubtaskTrack,
-      }).unwrap();
-
+      await createSubtask({ title: newSubtaskTitle, description: newSubtaskDesc, track_id: newSubtaskTrackId }).unwrap();
       toast.success("Subtask created successfully");
       setCreateSubtaskOpen(false);
-      setNewSubtaskTitle("");
-      setNewSubtaskDesc("");
-      setNewSubtaskTrack("");
-    } catch (e) {
-      console.error(e);
+      setNewSubtaskTitle(""); setNewSubtaskDesc(""); setNewSubtaskTrackId("");
+    } catch {
       toast.error("Error creating subtask");
     }
   };
@@ -199,7 +187,7 @@ export default function RoundDetailsPage() {
     setEditSubtaskId(task._id || task.id);
     setEditSubtaskTitle(task.title || "");
     setEditSubtaskDesc(task.description || "");
-    setEditSubtaskTrack(task.track || "");
+    setEditSubtaskTrackId(task.track_id || "");
     setEditSubtaskOpen(true);
   };
 
@@ -207,28 +195,17 @@ export default function RoundDetailsPage() {
     if (!editSubtaskId) return;
     setIsUpdatingSubtask(true);
     try {
-      await updateSubtask({
-        id: editSubtaskId,
-        body: {
-          title: editSubtaskTitle,
-          description: editSubtaskDesc,
-        } as any, // Cast to any because Subtask doesn't have track yet in API types
-      }).unwrap();
+      await updateSubtask({ id: editSubtaskId, body: { title: editSubtaskTitle, description: editSubtaskDesc, track_id: editSubtaskTrackId } }).unwrap();
       toast.success("Subtask updated");
       setEditSubtaskOpen(false);
-      setEditSubtaskId(null);
-      setEditSubtaskTitle("");
-      setEditSubtaskDesc("");
-      setEditSubtaskTrack("");
-    } catch (e) {
-      console.error(e);
+    } catch {
       toast.error("Error updating subtask");
     } finally {
       setIsUpdatingSubtask(false);
     }
-  };
+  ;}
 
-  const handleDeleteSubtask = async (id: string) => {
+  const handleDeleteSubtask = (id: string) => {
     setDeleteConfirmSubtaskId(id);
     setIsDeleteConfirmOpen(true);
   };
@@ -252,9 +229,9 @@ export default function RoundDetailsPage() {
   const handleToggleRoundStatus = async () => {
     if (!round) return;
     try {
-      await updateRound({
+      await toggleRoundStatus({
         id: roundId,
-        body: { is_active: !round.is_active },
+        action: round.is_active ? "stop" : "start",
       }).unwrap();
       toast.success(
         round.is_active
@@ -274,7 +251,7 @@ export default function RoundDetailsPage() {
     try {
       await updateRound({
         id: roundId,
-        body: { submission_enabled: checked },
+        body: { is_active: checked },
       }).unwrap();
       toast.success(`Submissions ${checked ? "enabled" : "disabled"}`);
     } catch (e) {
@@ -285,51 +262,56 @@ export default function RoundDetailsPage() {
   };
 
   const handleToggleTeamAllowed = (teamId: string) => {
-    setAllowedTeamIds((prev) =>
-      prev.includes(teamId)
-        ? prev.filter((id) => id !== teamId)
-        : [...prev, teamId],
-    );
-  };
-
-  const handleUpdateTeamSubtask = (
-    teamId: string,
-    index: number,
-    subtaskId: string,
-  ) => {
-    setTeamSubtaskMap((prev) => {
-      const next = { ...prev };
-      const current = next[teamId] ? [...next[teamId]] : ["", ""];
-      while (current.length < 2) current.push("");
-      current[index] = subtaskId;
-      next[teamId] = current;
+    setAllowedTeamIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamId)) next.delete(teamId); else next.add(teamId);
       return next;
     });
   };
 
-  const handleSaveChanges = async () => {
-    setIsSavingChanges(true);
+  const handleSaveShortlist = async () => {
+    setIsSavingShortlist(true);
     try {
-      // Save allowed teams
-      await updateRoundTeams({ roundId, teamIds: allowedTeamIds }).unwrap();
-
-      // Save team subtasks
-      const assignments = Object.entries(teamSubtaskMap).map(
-        ([teamId, subtaskIds]) => ({
-          teamId,
-          subtaskIds: subtaskIds.filter(Boolean),
-        }),
-      );
-      await updateRoundTeamSubtasks({ roundId, assignments }).unwrap();
-
-      toast.success("All changes saved successfully");
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to save changes");
+      await updateRoundTeams({ roundId, teamIds: [...allowedTeamIds] }).unwrap();
+      toast.success("Shortlist saved");
+    } catch {
+      toast.error("Failed to save shortlist");
     } finally {
-      setIsSavingChanges(false);
+      setIsSavingShortlist(false);
     }
   };
+
+  const handleSaveAllotments = async () => {
+    const allocations = Object.entries(subtaskAssignments)
+      .filter(([, v]) => v.slot1 || v.slot2)
+      .map(([teamId, v]) => ({
+        teamId,
+        subtaskIds: [v.slot1, v.slot2].filter(Boolean),
+      }));
+
+    if (allocations.length === 0) {
+      toast.error("No subtasks selected to save");
+      return;
+    }
+    setIsSavingAllotments(true);
+    try {
+      await allocateSubtasks({ roundId, allocations }).unwrap();
+      toast.success(`Subtask options assigned to ${allocations.length} team(s)`);
+    } catch {
+      toast.error("Failed to save subtask allotments");
+    } finally {
+      setIsSavingAllotments(false);
+    }
+  };
+
+  const teamsByTrack: Record<string, RoundTeam[]> = roundTeamsData?.teams_by_track
+    ? Object.fromEntries(
+        Object.entries(roundTeamsData.teams_by_track).map(([track, teams]) => [
+          track,
+          [...teams].sort((a, b) => (b.score ?? -1) - (a.score ?? -1)),
+        ]),
+      )
+    : {};
 
   if (loading) return <LoadingState message="Loading round details..." />;
   if (!round) return <LoadingState message="Round not found" />;
@@ -349,7 +331,6 @@ export default function RoundDetailsPage() {
             <span className="text-sm text-muted-foreground">{round._id}</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
           <Button
             onClick={handleToggleRoundStatus}
             className="gap-2 rounded-xl"
@@ -364,18 +345,7 @@ export default function RoundDetailsPage() {
               </>
             )}
           </Button>
-          <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-muted/20 px-3 py-2">
-            <Switch
-              id="submission-toggle"
-              checked={submissionToggled}
-              onCheckedChange={handleToggleSubmission}
-            />
-            <Label htmlFor="submission-toggle" className="cursor-pointer">
-              Submissions {submissionToggled ? "on" : "off"}
-            </Label>
-          </div>
         </div>
-      </div>
       <Card className="w-full">
         <CardHeader className="flex w-full justify-between">
           <CardTitle>Round Settings</CardTitle>
@@ -443,11 +413,10 @@ export default function RoundDetailsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Track</Label>
-                  <Input
-                    value={newSubtaskTrack}
-                    onChange={(e) => setNewSubtaskTrack(e.target.value)}
-                    placeholder="e.g. AI/ML"
-                  />
+                  <Select value={newSubtaskTrackId} onValueChange={setNewSubtaskTrackId}>
+                    <SelectTrigger><SelectValue placeholder="Select track" /></SelectTrigger>
+                    <SelectContent>{tracks.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
@@ -479,11 +448,10 @@ export default function RoundDetailsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Track</Label>
-                  <Input
-                    value={editSubtaskTrack}
-                    onChange={(e) => setEditSubtaskTrack(e.target.value)}
-                    placeholder="e.g. AI/ML"
-                  />
+                  <Select value={editSubtaskTrackId} onValueChange={setEditSubtaskTrackId}>
+                    <SelectTrigger><SelectValue placeholder="Select track" /></SelectTrigger>
+                    <SelectContent>{tracks.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
@@ -543,15 +511,15 @@ export default function RoundDetailsPage() {
           </Dialog>
         </CardHeader>
         <CardContent>
-          {subtasks.length === 0 ? (
+          {allSubtasks.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               No subtasks defined.
             </p>
           ) : (
             <div className="space-y-3">
-              {subtasks.map((task: any) => (
+              {allSubtasks.map((task: any) => (
                 <div
-                  key={task._id}
+                  key={task.id}
                   className="flex items-start justify-between p-4 rounded-lg border bg-muted/20"
                 >
                   <div>
@@ -579,7 +547,7 @@ export default function RoundDetailsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDeleteSubtask(task._id)}
+                      onClick={() => handleDeleteSubtask(task.id)}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="size-4" />
@@ -595,106 +563,172 @@ export default function RoundDetailsPage() {
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Round Teams</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Select allowed teams and assign two subtasks per team.
-            </p>
+            <CardTitle className="flex items-center gap-2"><Users className="size-5 text-muted-foreground" /> Subtask Allotment</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Manually assign a subtask to each team for this round.</p>
           </div>
-          <Button
-            onClick={handleSaveChanges}
-            disabled={isSavingChanges}
-            className="gap-2"
-          >
-            <Save />
-            {isSavingChanges ? "Saving..." : "Save"}
+          <Button onClick={handleSaveAllotments} disabled={isSavingAllotments} className="gap-2">
+            <Save className="size-4" />{isSavingAllotments ? "Saving..." : "Save Allotments"}
           </Button>
         </CardHeader>
-        <CardContent>
-          {roundTeams?.teams?.length ? (
-            <div className="h-150 overflow-x-auto rounded-xl border border-border/50">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/50 hover:bg-transparent">
-                    <TableHead className="w-12 font-semibold">Allow</TableHead>
-                    <TableHead className="font-semibold">Team</TableHead>
-                    <TableHead className="font-semibold">Track</TableHead>
-                    <TableHead className="font-semibold">Score</TableHead>
-                    <TableHead className="font-semibold">Subtask A</TableHead>
-                    <TableHead className="font-semibold">Subtask B</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {roundTeams.teams.map((team: any) => (
-                    <TableRow key={team.id} className="border-border/50">
-                      <TableCell>
-                        <Checkbox
-                          checked={allowedTeamIds.includes(team.id)}
-                          onCheckedChange={() =>
-                            handleToggleTeamAllowed(team.id)
-                          }
-                          aria-label={`Toggle ${team.name}`}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">{team.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {team.track || "—"}
-                      </TableCell>
-                      <TableCell>{team.score ?? "—"}</TableCell>
-                      <TableCell>
-                        <Select
-                          value={teamSubtaskMap[team.id]?.[0] || ""}
-                          onValueChange={(value) =>
-                            handleUpdateTeamSubtask(team.id, 0, value)
-                          }
-                        >
-                          <SelectTrigger className="rounded-lg">
-                            <SelectValue placeholder="Select subtask" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {subtasks.map((subtask: any) => (
-                              <SelectItem
-                                key={subtask._id || subtask.id}
-                                value={subtask._id || subtask.id}
-                              >
-                                {subtask.track
-                                  ? `${subtask.title} (${subtask.track})`
-                                  : subtask.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={teamSubtaskMap[team.id]?.[1] || ""}
-                          onValueChange={(value) =>
-                            handleUpdateTeamSubtask(team.id, 1, value)
-                          }
-                        >
-                          <SelectTrigger className="rounded-lg">
-                            <SelectValue placeholder="Select subtask" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {subtasks.map((subtask: any) => (
-                              <SelectItem
-                                key={subtask._id || subtask.id}
-                                value={subtask._id || subtask.id}
-                              >
-                                {subtask.track
-                                  ? `${subtask.title} (${subtask.track})`
-                                  : subtask.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
+        <CardContent className="space-y-6">
+          {Object.keys(teamsByTrack).length === 0 ? (
             <p className="text-sm text-muted-foreground">No teams found.</p>
+          ) : (
+            Object.entries(teamsByTrack).map(([trackName, teams]) => {
+              const trackSubtasks = allSubtasks.filter(
+                (s: any) => s.track_id === teams[0]?.track_id
+              );
+              return (
+                <div key={trackName}>
+                  <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
+                    <Badge variant="outline">{trackName}</Badge>
+                    <span className="text-muted-foreground text-sm font-normal">
+                      {teams.filter((t) => subtaskAssignments[t.id]).length} / {teams.length} assigned
+                    </span>
+                  </h3>
+                  <div className="rounded-xl border border-border/50 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border/50 hover:bg-transparent">
+                          <TableHead className="font-semibold">Team</TableHead>
+                          <TableHead className="font-semibold">Team&apos;s Choice</TableHead>
+                          <TableHead className="font-semibold">Assign Options (max 2)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {teams.map((team) => (
+                          <TableRow key={team.id} className="border-border/50">
+                            <TableCell className="font-medium">{team.team_name}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {team.subtask_history?.selected?.title ?? <span className="italic">Not chosen yet</span>}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-2 min-w-[200px]">
+                                <Select
+                                  value={subtaskAssignments[team.id]?.slot1 ?? ""}
+                                  onValueChange={(val) =>
+                                    setSubtaskAssignments((prev) => ({
+                                      ...prev,
+                                      [team.id]: { ...prev[team.id], slot1: val },
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Option 1..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {trackSubtasks.length === 0 ? (
+                                      <SelectItem value="__none" disabled>No subtasks for this track</SelectItem>
+                                    ) : (
+                                      trackSubtasks.map((s: any) => (
+                                        <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                <Select
+                                  value={subtaskAssignments[team.id]?.slot2 ?? ""}
+                                  onValueChange={(val) =>
+                                    setSubtaskAssignments((prev) => ({
+                                      ...prev,
+                                      [team.id]: { ...prev[team.id], slot2: val },
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Option 2..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {trackSubtasks.length === 0 ? (
+                                      <SelectItem value="__none" disabled>No subtasks for this track</SelectItem>
+                                    ) : (
+                                      trackSubtasks.map((s: any) => (
+                                        <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="w-full">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2"><Users className="size-5 text-muted-foreground" /> Shortlist Teams</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Check teams to shortlist for this round.</p>
+          </div>
+          <Button onClick={handleSaveShortlist} disabled={isSavingShortlist} className="gap-2">
+            <Save className="size-4" />{isSavingShortlist ? "Saving..." : "Save Shortlist"}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {Object.keys(teamsByTrack).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No teams found for this round.</p>
+          ) : (
+            Object.entries(teamsByTrack).map(([trackName, teams]) => (
+              <div key={trackName}>
+                <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
+                  <Badge variant="outline">{trackName}</Badge>
+                  <span className="text-muted-foreground text-sm font-normal">{teams.filter((t) => allowedTeamIds.has(t.id)).length} / {teams.length} shortlisted</span>
+                </h3>
+                <div className="rounded-xl border border-border/50 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border/50 hover:bg-transparent">
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={teams.length > 0 && teams.every((t) => allowedTeamIds.has(t.id))}
+                            onCheckedChange={(checked) => {
+                              setAllowedTeamIds((prev) => {
+                                const next = new Set(prev);
+                                teams.forEach((t) => checked ? next.add(t.id) : next.delete(t.id));
+                                return next;
+                              });
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead className="font-semibold">Team</TableHead>
+                        <TableHead className="font-semibold text-right">Score</TableHead>
+                        <TableHead className="font-semibold">Submission</TableHead>
+                        <TableHead className="font-semibold">Subtask</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teams.map((team) => (
+                        <TableRow
+                          key={team.id}
+                          className={cn("border-border/50 cursor-pointer", allowedTeamIds.has(team.id) && "bg-primary/5")}
+                          onClick={() => handleToggleTeamAllowed(team.id)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox checked={allowedTeamIds.has(team.id)} onCheckedChange={() => handleToggleTeamAllowed(team.id)} />
+                          </TableCell>
+                          <TableCell className="font-medium">{team.team_name}</TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {team.score !== null ? <span className="text-primary">{team.score}</span> : <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell>
+                            {team.submission ? <Badge variant="default" className="text-xs">Submitted</Badge> : <Badge variant="outline" className="text-xs">None</Badge>}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{team.subtask_history?.selected?.title ?? "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
