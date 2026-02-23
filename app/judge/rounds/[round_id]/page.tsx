@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { useGetRoundDetailsQuery } from "@/lib/redux/api/adminApi";
 import {
-  useGetJudgeAssignedTeamsQuery,
+  useGetJudgeRoundDetailsQuery,
   useSubmitScoreMutation,
+  useUpdateScoreMutation,
 } from "@/lib/redux/api/judgeApi";
 import { toast } from "sonner";
 import { Loader2, Users } from "lucide-react";
@@ -48,9 +48,9 @@ export default function JudgeRoundDetailsPage() {
   const { round_id } = useParams<{ round_id: string }>();
   const roundId = round_id ?? "";
 
-  const { data: roundData } = useGetRoundDetailsQuery(roundId);
-  const { data: teamsData, isLoading } =
-    useGetJudgeAssignedTeamsQuery(roundId);
+  const { data: roundData, isLoading } = useGetJudgeRoundDetailsQuery(roundId);
+  const roundInfo = roundData?.round;
+  const teamsData: any[] = roundData?.teams ?? [];
 
   const [evaluations, setEvaluations] = useState<TeamEvaluation[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -59,36 +59,37 @@ export default function JudgeRoundDetailsPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [submitScore] = useSubmitScoreMutation();
+  const [updateScore] = useUpdateScoreMutation();
 
   useEffect(() => {
-    if (teamsData && Array.isArray(teamsData)) {
+    if (Array.isArray(teamsData) && teamsData.length >= 0) {
       setEvaluations(
         teamsData.map((team: any) => ({
           teamId: team.team_id,
           teamName: team.team_name,
-          taskName:
-            team.chosenTask || team.selected_subtask?.title || "No task",
-          status: team.status ?? "pending",
-          score: team.score ?? null,
-          remarks: team.remarks ?? "",
+          taskName: team.selected_subtask?.title || "No task",
+          // score is nested: { score, remarks, status }
+          status: (team.score?.status as "pending" | "scored") ?? "pending",
+          score: team.score?.score ?? null,
+          remarks: team.score?.remarks ?? "",
           selected_subtask: team.selected_subtask,
           submission: team.submission,
         })),
       );
     }
-  }, [teamsData]);
+  }, [roundData]);
 
   useEffect(() => {
-    if (roundData) {
+    if (roundInfo) {
       setBreadcrumbs([
         { label: "Rounds", href: "/judge/rounds" },
         {
-          label: `Round ${roundData.round_number}`,
+          label: `Round ${roundInfo.round_number}`,
           href: `/judge/rounds/${roundId}`,
         },
       ]);
     }
-  }, [roundData, roundId]);
+  }, [roundInfo, roundId]);
 
   useEffect(() => {
     if (!selectedTeamId) return;
@@ -110,10 +111,10 @@ export default function JudgeRoundDetailsPage() {
   };
 
   const handleScoreChange = (value: string) => {
-    // Allow only 0-20 range
+    // Allow only 0-100 range
     if (
       value === "" ||
-      (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 20)
+      (/^\d+$/.test(value) && parseInt(value) >= 0 && parseInt(value) <= 100)
     ) {
       setDialogScore(value);
     }
@@ -122,19 +123,30 @@ export default function JudgeRoundDetailsPage() {
   const handleSaveEvaluation = async () => {
     if (!selectedTeamId) return;
     const score = dialogScore === "" ? 0 : parseInt(dialogScore);
-    if (score < 0 || score > 20) {
-      toast.error("Please enter a valid score (0-20)");
+    if (score < 0 || score > 100) {
+      toast.error("Please enter a valid score (0-100)");
       return;
     }
 
+    const alreadyScored = selectedTeam?.status === "scored";
+
     setIsSaving(true);
     try {
-      await submitScore({
-        roundId,
-        teamId: selectedTeamId,
-        score,
-        remarks: dialogRemarks,
-      }).unwrap();
+      if (alreadyScored) {
+        await updateScore({
+          roundId,
+          teamId: selectedTeamId,
+          score,
+          remarks: dialogRemarks,
+        }).unwrap();
+      } else {
+        await submitScore({
+          roundId,
+          teamId: selectedTeamId,
+          score,
+          remarks: dialogRemarks,
+        }).unwrap();
+      }
 
       setEvaluations((prev) =>
         prev.map((e) =>
@@ -162,8 +174,8 @@ export default function JudgeRoundDetailsPage() {
     <div className="space-y-8">
       <header className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">
-          {roundData ? (
-            `Round ${roundData.round_number} – Team Evaluations`
+          {roundInfo ? (
+            `Round ${roundInfo.round_number} – Team Evaluations`
           ) : (
             <Skeleton className="h-8 w-80" />
           )}
@@ -194,8 +206,8 @@ export default function JudgeRoundDetailsPage() {
                     {i === 0
                       ? "Evaluations ongoing"
                       : i === 1
-                        ? "Teams remaining"
-                        : "Teams evaluated"}
+                      ? "Teams remaining"
+                      : "Teams evaluated"}
                   </p>
                 </>
               )}
@@ -225,53 +237,53 @@ export default function JudgeRoundDetailsPage() {
               <TableBody>
                 {isLoading
                   ? Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-40" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-5 w-20 rounded-full" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-12" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-8 w-24 ml-auto" />
-                      </TableCell>
-                    </TableRow>
-                  ))
+                      <TableRow key={i}>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-40" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-20 rounded-full" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-12" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-24 ml-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ))
                   : evaluations.map((e) => (
-                    <TableRow key={e.teamId}>
-                      <TableCell className="font-medium">
-                        {e.teamName}
-                      </TableCell>
-                      <TableCell>{e.taskName}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            e.status === "scored" ? "default" : "outline"
-                          }
-                        >
-                          {e.status === "scored" ? "Scored" : "Pending"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {e.score !== null ? `${e.score}/10` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedTeamId(e.teamId)}
-                        >
-                          {e.status === "scored" ? "Edit" : "Evaluate"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                      <TableRow key={e.teamId}>
+                        <TableCell className="font-medium">
+                          {e.teamName}
+                        </TableCell>
+                        <TableCell>{e.taskName}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              e.status === "scored" ? "default" : "outline"
+                            }
+                          >
+                            {e.status === "scored" ? "Scored" : "Pending"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {e.score !== null ? `${e.score}/100` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedTeamId(e.teamId)}
+                          >
+                            {e.status === "scored" ? "Edit" : "Evaluate"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
               </TableBody>
             </Table>
           </div>
@@ -287,39 +299,65 @@ export default function JudgeRoundDetailsPage() {
             </DialogTitle>
           </DialogHeader>
 
-          {selectedTeam?.submission && (
-            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-              {selectedTeam.submission.github_link && (
-                <a
-                  href={ensureAbsoluteUrl(
-                    selectedTeam.submission.github_link,
-                  )}
-                  target="_blank"
-                  className="text-sm text-primary hover:underline"
-                >
-                  GitHub Repository
-                </a>
-              )}
-              {selectedTeam.submission.submission_text && (
-                <p className="text-sm whitespace-pre-wrap">
-                  {selectedTeam.submission.submission_text}
-                </p>
-              )}
-            </div>
-          )}
+          <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Submission</p>
+            {selectedTeam?.submission ? (
+              <div className="space-y-2">
+                {selectedTeam.submission.github_link && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-20 shrink-0">GitHub</span>
+                    <a
+                      href={ensureAbsoluteUrl(selectedTeam.submission.github_link)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-primary hover:underline truncate"
+                    >
+                      {selectedTeam.submission.github_link}
+                    </a>
+                  </div>
+                )}
+                {selectedTeam.submission.file_url && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-20 shrink-0">Drive / File</span>
+                    <a
+                      href={ensureAbsoluteUrl(selectedTeam.submission.file_url)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-primary hover:underline truncate"
+                    >
+                      {selectedTeam.submission.file_url}
+                    </a>
+                  </div>
+                )}
+                {selectedTeam.submission.overview && (
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Overview / Comments</span>
+                    <p className="text-sm whitespace-pre-wrap bg-background rounded p-2 border">
+                      {selectedTeam.submission.overview}
+                    </p>
+                  </div>
+                )}
+                {!selectedTeam.submission.github_link && !selectedTeam.submission.file_url && !selectedTeam.submission.overview && (
+                  <p className="text-sm text-muted-foreground italic">No submission details provided.</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Team has not submitted yet — you can still record a score.</p>
+            )}
+          </div>
 
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">
                 Score <span className="text-red-500">*</span>
                 <span className="text-xs text-muted-foreground ml-2">
-                  (0-20)
+                  (0-100)
                 </span>
               </label>
               <Input
                 type="number"
                 min="0"
-                max="20"
+                max="100"
                 value={dialogScore}
                 onChange={(e) => handleScoreChange(e.target.value)}
                 placeholder="Enter score"

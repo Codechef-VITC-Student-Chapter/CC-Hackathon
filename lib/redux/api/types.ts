@@ -1,22 +1,30 @@
-export type Team = {
+export type Track = {
   id: string;
   name: string;
+  description?: string;
+  is_active?: boolean;
+};
+
+export type Team = {
+  id: string;
+  team_name: string;
   email?: string;
   track?: string | null;
-  currentRoundId?: string | null;
-  score?: number | null;
+  track_id?: string | null;
+  cumulative_score?: number | null;
+  round_scores?: Array<{
+    round_id: string;
+    round_number: number;
+    score: number | null;
+    num_judges?: number;
+  }>;
 };
 
 export type Round = {
   _id: string;
   id: string;
   round_number?: number;
-  name?: string;
-  status?: "draft" | "active" | "paused" | "closed";
   is_active?: boolean;
-  submission_enabled?: boolean;
-  startsAt?: string | null;
-  endsAt?: string | null;
   start_time?: string | null;
   end_time?: string | null;
   instructions?: string;
@@ -24,9 +32,11 @@ export type Round = {
 
 export type Judge = {
   id: string;
-  name: string;
+  judge_name: string;
   email: string;
-  assignedTeams?: string[];
+  track?: string;
+  track_id?: string | null;
+  teams_assigned?: string[];
   assignedTeamsCount?: number;
 };
 
@@ -41,19 +51,10 @@ export type Submission = {
 // Admin-specific types
 export type AdminDashboard = {
   totalTeams: number;
-  currentRound: Round | null;
-  currentRoundId: string | null;
+  currentRound: { id: string; name: string; round_number: number } | null;
+  roundStatus: "idle" | "active" | "inactive" | "upcoming" | "completed";
   submissionsCount: number;
   pendingEvaluationCount: number;
-  roundStatus:
-    | "idle"
-    | "active"
-    | "paused"
-    | "closed"
-    | "inactive"
-    | "upcoming"
-    | "completed";
-  submissionEnabled: boolean;
   topTeams?: Array<{
     id: string;
     name: string;
@@ -66,36 +67,54 @@ export type Subtask = {
   id: string;
   title: string;
   description: string;
-  round_id: string;
+  track?: string;
+  track_id?: string | null;
   is_active?: boolean;
-  order?: number;
 };
 
 export type TeamDetail = {
   id: string;
-  name: string;
+  team_name: string;
+  email?: string;
   track: string | null;
-  currentRoundId: string | null;
-  currentRoundName: string | null;
-  score: number | null;
-  submissionStatus: "pending" | "submitted" | "locked" | "not_required";
-  isShortlisted?: boolean;
-  isLocked?: boolean;
-  isEliminated?: boolean;
-  roundScores?: Array<{
-    roundId: string;
-    roundNumber: number;
+  track_id?: string | null;
+  cumulative_score: number;
+  rounds_accessible?: Array<{ id: string; round_number: number }>;
+  history?: Array<{
+    round_id: string;
+    round_name: string;
+    status: string;
+    selection?: string;
+    github_link?: string;
+    submission_file?: string;
     score: number | null;
+    remarks?: string;
   }>;
 };
 
-export type RoundTeamSelection = {
-  teamId: string;
-  teamName: string;
-  shownOptions: { id: string; title: string }[];
-  chosenOption: { id: string; title: string } | null;
-  nextRoundTaskA?: string;
-  nextRoundTaskB?: string;
+export type RoundTeam = {
+  id: string;
+  team_name: string;
+  track: string;
+  track_id: string | null;
+  score: number | null;
+  allowed: boolean;
+  submission: {
+    id: string;
+    github_link?: string;
+    file_url?: string;
+    submitted_at?: string;
+  } | null;
+  subtask_history: {
+    options: { id: string; title: string }[];
+    selected: { id: string; title: string } | null;
+    selected_at?: string;
+  } | null;
+};
+
+export type RoundTeamsResponse = {
+  teams_by_track: Record<string, RoundTeam[]>;
+  total_teams: number;
 };
 
 export type JudgeAssignment = {

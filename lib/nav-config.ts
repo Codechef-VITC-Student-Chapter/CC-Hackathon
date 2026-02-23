@@ -5,6 +5,7 @@ import {
   ListOrdered,
   FileText,
   Trophy,
+  Tag,
 } from "lucide-react";
 
 export type Role = "admin" | "judge" | "team";
@@ -36,6 +37,11 @@ export const navConfig: Record<Role, SidebarNavItem[]> = {
       title: "Judges",
       href: "/admin/judges",
       icon: Gavel,
+    },
+    {
+      title: "Tracks",
+      href: "/admin/tracks",
+      icon: Tag,
     },
   ],
   judge: [

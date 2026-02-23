@@ -5,6 +5,10 @@ const path = require('path');
 const API_URL = 'http://localhost:3000/api/admin/teams/bulk';
 const CSV_FILE_PATH = path.join(__dirname, './teams.csv');
 
+// Optional: set BULK_UPLOAD_KEY in your environment to authenticate
+// e.g.  BULK_UPLOAD_KEY=mysecret node scripts/upload_teams.js
+const BULK_UPLOAD_KEY = process.env.BULK_UPLOAD_KEY || '';
+
 async function uploadTeams() {
     try {
         if (!fs.existsSync(CSV_FILE_PATH)) {
@@ -41,9 +45,12 @@ async function uploadTeams() {
 
         console.log(`Sending ${teams.length} teams to API...`);
 
+        const headers = { 'Content-Type': 'application/json' };
+        if (BULK_UPLOAD_KEY) headers['Authorization'] = `Bearer ${BULK_UPLOAD_KEY}`;
+
         const response = await fetch(API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(teams)
         });
 

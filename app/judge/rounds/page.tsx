@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,74 +15,86 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Clock, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useGetAdminRoundsQuery } from "@/lib/redux/api/adminApi";
+import {
+  useGetJudgeRoundsQuery,
+  useGetJudgeAssignedTeamsQuery,
+} from "@/lib/redux/api/judgeApi";
 import { setBreadcrumbs } from "@/lib/hooks/useBreadcrumb";
 
-type RoundStats = {
-  assignedTeams: number;
-  pending: number;
-  scored: number;
-};
+/** Per-round stats row fetched via RTK Query (avoids raw fetch loops). */
+function RoundStatsRow({
+  round,
+  onView,
+}: {
+  round: any;
+  onView: (id: string) => void;
+}) {
+  const { data: teams = [], isLoading: loadingTeams } =
+    useGetJudgeAssignedTeamsQuery(round.id);
+
+  const assignedTeams = teams.length;
+  const scored = teams.filter((t: any) => t.status === "scored").length;
+  const pending = assignedTeams - scored;
+
+  return (
+    <TableRow className="border-border/50 transition hover:bg-muted/50">
+      <TableCell className="font-medium">Round {round.round_number}</TableCell>
+
+      <TableCell className="text-center">
+        {loadingTeams ? (
+          <Skeleton className="mx-auto h-4 w-10" />
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            {assignedTeams}
+          </span>
+        )}
+      </TableCell>
+
+      <TableCell className="text-center">
+        {loadingTeams ? (
+          <Skeleton className="mx-auto h-5 w-10 rounded-full" />
+        ) : (
+          <Badge variant="secondary">{pending}</Badge>
+        )}
+      </TableCell>
+
+      <TableCell className="text-center">
+        {loadingTeams ? (
+          <Skeleton className="mx-auto h-5 w-10 rounded-full" />
+        ) : (
+          <Badge variant="default">{scored}</Badge>
+        )}
+      </TableCell>
+
+      <TableCell className="text-center">
+        <Badge variant={round.is_active ? "default" : "secondary"}>
+          {round.is_active ? "Active" : "Inactive"}
+        </Badge>
+      </TableCell>
+
+      <TableCell className="text-right">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onView(round.id)}
+        >
+          View Teams
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 export default function JudgeRoundsPage() {
   const router = useRouter();
-  const { data: rounds = [], isLoading } = useGetAdminRoundsQuery();
-  const [roundStats, setRoundStats] = useState<Record<string, RoundStats>>({});
-  const [loadingStats, setLoadingStats] = useState(true);
+  const { data: rounds = [], isLoading } = useGetJudgeRoundsQuery();
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Rounds", href: "/judge/rounds" }]);
   }, []);
 
-  useEffect(() => {
-    if (rounds.length === 0) {
-      setLoadingStats(false);
-      return;
-    }
-
-    const fetchRoundStats = async () => {
-      const stats: Record<string, RoundStats> = {};
-
-      for (const round of rounds) {
-        try {
-          const response = await fetch(
-            `/api/judge/assigned-teams?round_id=${round._id}`,
-          );
-
-          if (response.ok) {
-            const teams = await response.json();
-            const assignedTeams = Array.isArray(teams) ? teams.length : 0;
-            let pending = 0;
-            let scored = 0;
-
-            if (Array.isArray(teams)) {
-              teams.forEach((team: any) => {
-                if (team.status === "scored") scored++;
-                else pending++;
-              });
-            }
-
-            stats[round._id] = { assignedTeams, pending, scored };
-          }
-        } catch {
-          stats[round._id] = { assignedTeams: 0, pending: 0, scored: 0 };
-        }
-      }
-
-      setRoundStats(stats);
-      setLoadingStats(false);
-    };
-
-    fetchRoundStats();
-  }, [rounds]);
-
-  const roundsWithStats = rounds.map((round: any) => ({
-    ...round,
-    ...(roundStats[round._id] ?? { assignedTeams: 0, pending: 0, scored: 0 }),
-  }));
-
-  const showSkeleton = isLoading || loadingStats;
+  const showSkeleton = isLoading;
 
   return (
     <div className="space-y-8">
@@ -145,7 +157,7 @@ export default function JudgeRoundsPage() {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : roundsWithStats.length === 0 ? (
+                ) : rounds.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={6}
@@ -155,54 +167,12 @@ export default function JudgeRoundsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  roundsWithStats.map((round: any) => (
-                    <TableRow
-                      key={round._id}
-                      className="border-border/50 transition hover:bg-muted/50"
-                    >
-                      <TableCell className="font-medium">
-                        Round {round.round_number}
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          {round.assignedTeams}
-                        </span>
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Badge variant="secondary">
-                          {round.pending}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Badge variant="default">
-                          {round.scored}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={round.is_active ? "default" : "secondary"}
-                        >
-                          {round.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            router.push(`/judge/rounds/${round._id}`)
-                          }
-                        >
-                          View Teams
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                  rounds.map((round: any) => (
+                    <RoundStatsRow
+                      key={round.id}
+                      round={round}
+                      onView={(id) => router.push(`/judge/rounds/${id}`)}
+                    />
                   ))
                 )}
               </TableBody>
