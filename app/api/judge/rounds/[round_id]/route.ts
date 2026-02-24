@@ -12,6 +12,7 @@ import RoundOptions from "@/models/RoundOptions";
 import Track from "@/models/Track";
 import Subtask from "@/models/Subtask";
 import { proxy } from "@/lib/proxy";
+import { getAssignedTeamIdsForJudgeRound } from "@/lib/judgeAssignments";
 
 async function getJudgeFromSession() {
   const session = await getServerSession(authOptions);
@@ -67,8 +68,11 @@ async function GETHandler(
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
 
-  // Get all teams assigned to this judge
-  const assignedTeamIds = judgeSession.judge.teams_assigned || [];
+  // Get all teams assigned to this judge for this round
+  const assignedTeamIds = await getAssignedTeamIdsForJudgeRound(
+    judgeSession.judge._id.toString(),
+    round_id,
+  );
 
   // Get all teams assigned to this judge (regardless of rounds_accessible)
   const teams = await Team.find({
