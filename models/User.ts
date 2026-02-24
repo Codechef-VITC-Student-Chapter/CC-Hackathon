@@ -1,5 +1,5 @@
-import mongoose, { Schema, Document, models, model } from "mongoose";
-
+// import mongoose, { Schema, Document, models, model } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 export interface IUser extends Document {
   email: string;
   role: "team" | "judge" | "admin";
@@ -25,4 +25,5 @@ const UserSchema = new Schema<IUser>({
   },
 });
 
-export default models.User || model<IUser>("User", UserSchema);
+// export default models.User || model<IUser>("User", UserSchema);
+export default mongoose.models.User || mongoose.model<IUser>("User", UserSchema);

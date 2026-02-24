@@ -20,7 +20,7 @@ async function uploadTeams() {
         const csvContent = fs.readFileSync(CSV_FILE_PATH, 'utf-8');
         const lines = csvContent.split('\n');
         
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        headers = lines[0].split(',').map(h => h.trim().toLowerCase());
         const teams = [];
 
         console.log(`Parsing ${lines.length} lines...`);
