@@ -167,55 +167,77 @@ export default function Page() {
         {submission ? (
           <Card>
             <CardHeader>
-              <CardTitle>Submission</CardTitle>
+              <CardTitle>
+                {isEditingSubmission ? "Edit Submission" : "Submission"}
+              </CardTitle>
               <p className="text-sm text-muted-foreground">
                 Submitted on {formatDate(submission.submitted_at)}
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
-
-              {submission.github_link && (
-                <a
-                  href={ensureAbsoluteUrl(submission.github_link)}
-                  target="_blank"
-                  className="block text-sm text-primary hover:underline"
-                >
-                  GitHub Repository
-                </a>
-              )}
-
-              {submission.overview && (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    OVERVIEW
-                  </p>
-                  <p className="whitespace-pre-wrap text-sm">
-                    {submission.overview}
-                  </p>
-                </div>
-              )}
-
-              {score && (
-                <div className="rounded-lg border border-border bg-muted/50 p-4">
-                  <p className="text-sm font-semibold">
-                    Score: {score.score}/10
-                  </p>
-                  {score.remarks && (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {score.remarks}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {!isRoundEnded && (
-                <Button
-                  variant="outline"
-                  onClick={() => setIsEditingSubmission(true)}
+              {isEditingSubmission ? (
+                <SubmissionForm
+                  subtask={{ id: subtask._id, title: subtask.title }}
+                  roundId={id}
+                  isEditing
                   disabled={!canInteractWithRound}
-                >
-                  Edit Submission
-                </Button>
+                  submission={{
+                    github_link: submission.github_link,
+                    file_url: submission.file_url,
+                    overview: submission.overview,
+                  }}
+                  onSuccess={() => {
+                    setIsEditingSubmission(false);
+                    toast.success("Submission updated successfully.");
+                  }}
+                  onCancel={() => setIsEditingSubmission(false)}
+                />
+              ) : (
+                <>
+                  {submission.github_link && (
+                    <a
+                      href={ensureAbsoluteUrl(submission.github_link)}
+                      target="_blank"
+                      className="block text-sm text-primary hover:underline"
+                    >
+                      GitHub Repository
+                    </a>
+                  )}
+
+                  {submission.overview && (
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        OVERVIEW
+                      </p>
+                      <p className="whitespace-pre-wrap text-sm">
+                        {submission.overview}
+                      </p>
+                    </div>
+                  )}
+
+                  {score && (
+                    <div className="rounded-lg border border-border bg-muted/50 p-4">
+                      <p className="text-sm font-semibold">
+                        Score: {score.score}/10
+                      </p>
+                      {score.remarks && (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {score.remarks}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {!isRoundEnded && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsEditingSubmission(true)}
+                      disabled={!canInteractWithRound}
+                    >
+                      Edit Submission
+                    </Button>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

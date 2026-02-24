@@ -149,8 +149,9 @@ export default function TeamDashboardPage() {
                   {activeRound?.is_active ? "Active" : "Closed"}
                 </Badge>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Submissions{" "}
-                  {activeRound?.submission_enabled ? "open" : "closed"}
+                  {activeRound?.is_active
+                    ? "Round currently active"
+                    : "Round not active"}
                 </p>
               </>
             )}
@@ -248,8 +249,8 @@ export default function TeamDashboardPage() {
                   GitHub Repository
                 </a>
               )}
-              {activeRound?.submission_enabled && (
-                <Link href={`/team/rounds/${activeRound?._id}`}>
+              {activeRound?._id && (
+                <Link href={`/team/rounds/${activeRound._id}`}>
                   <Button size="sm" variant="outline">
                     Update Submission
                   </Button>

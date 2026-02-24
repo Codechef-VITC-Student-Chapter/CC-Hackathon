@@ -72,53 +72,8 @@ async function GETHandler(request: NextRequest) {
       submissionsByRound.get(roundId)!.push(sub);
     });
 
-    // Fetch all scored entries for all submissions
-    const submissionIds = submissions.map((s: any) => s._id);
-    const scores = await Score.find({
-      submission_id: { $in: submissionIds },
-      score: { $ne: null },
-    }).lean();
-
-    const scoreBySubmission = new Map<string, number>();
-    scores.forEach((scoreDoc: any) => {
-      const key = scoreDoc.submission_id.toString();
-      const current = scoreBySubmission.get(key) || 0;
-      scoreBySubmission.set(key, current + (scoreDoc.score || 0));
-    });
-
-    const representativeSubmissions = [...submissionsByRound.values()].map(
-      (roundSubs) =>
-        roundSubs.find(
-          (submission: any) =>
-            scoreBySubmission.has(submission._id.toString()),
-        ) || roundSubs[0],
-    );
-
-    const allRoundDetails = await Round.find({
-      _id: { $in: representativeSubmissions.map((s: any) => s.round_id) },
-    })
-      .select("_id round_number")
-      .lean();
-    const roundNumberById = new Map(
-      allRoundDetails.map((r: any) => [r._id.toString(), r.round_number]),
-    );
-
-    const allRoundScores = representativeSubmissions
-      .map((submission: any) => ({
-        round_id: submission.round_id.toString(),
-        round_number: roundNumberById.get(submission.round_id.toString()) ?? 0,
-        score: scoreBySubmission.get(submission._id.toString()) ?? null,
-      }))
-      .sort((a, b) => a.round_number - b.round_number);
-
-    const totalScore = allRoundScores.reduce(
-      (sum, item) => sum + (item.score || 0),
-      0,
-    );
-    const latestRoundScore =
-      allRoundScores.length > 0
-        ? allRoundScores[allRoundScores.length - 1].score
-        : null;
+    // Team score aggregation intentionally hidden from team API response.
+    // Keep score visibility restricted to judge/admin flows.
 
     // Fetch current round subtask selection
     let currentRoundSubtask = null;
@@ -199,9 +154,9 @@ async function GETHandler(request: NextRequest) {
       current_round_subtask: currentRoundSubtask,
       current_round_submission: currentRoundSubmission,
       current_round_remarks: currentRoundRemarks,
-      total_score: totalScore,
-      latest_round_score: latestRoundScore,
-      all_round_scores: allRoundScores,
+      // total_score: totalScore,
+      // latest_round_score: latestRoundScore,
+      // all_round_scores: allRoundScores,
       rounds_accessible: accessibleRoundIds,
     });
 
