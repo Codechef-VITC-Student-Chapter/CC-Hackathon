@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingState } from "@/components/loading-state";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, ListPlus, Eye } from "lucide-react";
+import { Plus, Trash2, ListPlus, Eye, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -69,6 +69,7 @@ export default function TeamsPage() {
   const [newTeamTrackId, setNewTeamTrackId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openTrackSections, setOpenTrackSections] = useState<Record<string, boolean>>({});
 
   // Batch create state
   const [batchOpen, setBatchOpen] = useState(false);
@@ -94,6 +95,46 @@ export default function TeamsPage() {
       team.track?.toLowerCase().includes(query)
     );
   });
+
+  const trackGroups = useMemo(
+    () =>
+      Object.entries(
+        filteredTeams.reduce<Record<string, typeof filteredTeams>>((acc, team) => {
+          const track = team.track || "Unassigned";
+          if (!acc[track]) acc[track] = [];
+          acc[track].push(team);
+          return acc;
+        }, {}),
+      ).sort(([a], [b]) => a.localeCompare(b)),
+    [filteredTeams],
+  );
+
+  const trackKeys = useMemo(
+    () => trackGroups.map(([track]) => track),
+    [trackGroups],
+  );
+
+  useEffect(() => {
+    setOpenTrackSections((prev) => {
+      let changed = false;
+      const next: Record<string, boolean> = {};
+
+      trackKeys.forEach((track) => {
+        if (prev[track] === undefined) {
+          next[track] = true;
+          changed = true;
+        } else {
+          next[track] = prev[track];
+        }
+      });
+
+      if (Object.keys(prev).length !== trackKeys.length) {
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  }, [trackKeys]);
 
   const handleCreateTeam = async () => {
     const parsedTeamSize = Number(newTeamSize);
@@ -360,89 +401,118 @@ export default function TeamsPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>All Teams ({filteredTeams.length})</CardTitle>
+            <CardTitle>
+              All Teams ({filteredTeams.length}
+              {filteredTeams.length !== teams.length ? ` / ${teams.length}` : ""}
+              )
+            </CardTitle>
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by team, email, mobile, or track..."
-              className="w-full sm:max-w-sm"
+              className="w-full sm:max-w-sm bg-background/80"
             />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Mobile</TableHead>
-                  <TableHead className="text-right">Team Size</TableHead>
-                  <TableHead>Track</TableHead>
-                  <TableHead className="w-12" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTeams.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      {teams.length === 0 ? "No teams yet" : "No teams match your search"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTeams.map((team) => (
-                    <TableRow key={team.id}>
-                      <TableCell>
-                        <a
-                          href={`/admin/teams/${team.id}`}
-                          className="font-medium hover:underline text-primary"
-                        >
-                          {team.team_name}
-                        </a>
-                      </TableCell>
-                      <TableCell>
-                        {team.mobile_number || (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {team.team_size ?? (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {team.track ? (
-                          <Badge variant="outline">{team.track}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="View details"
-                            onClick={() => router.push(`/admin/teams/${team.id}`)}
-                          >
-                            <Eye className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            title="Delete team"
-                            onClick={() => handleDeleteTeam(team.id)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+        <CardContent className="space-y-5">
+          {trackGroups.length === 0 ? (
+            <div className="rounded-xl border border-dashed py-10 text-center text-muted-foreground">
+              {teams.length === 0 ? "No teams yet" : "No teams match your search"}
+            </div>
+          ) : (
+            trackGroups.map(([track, groupedTeams]) => (
+              <section key={track} className="space-y-3">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 hover:bg-muted/30 transition-colors"
+                  onClick={() =>
+                    setOpenTrackSections((prev) => ({
+                      ...prev,
+                      [track]: !prev[track],
+                    }))
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs font-medium">
+                      {track}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {groupedTeams.length} team(s)
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`size-4 text-muted-foreground transition-transform duration-300 ${
+                      openTrackSections[track] ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                <div
+                  className={`rounded-xl border bg-background/50 overflow-hidden transition-all duration-300 ${
+                    openTrackSections[track] ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0 border-transparent"
+                  }`}
+                >
+                  <div>
+                    <Table>
+                      <TableHeader className="sticky top-0 z-10 bg-muted/60 backdrop-blur">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="py-2.5">Name</TableHead>
+                          <TableHead className="py-2.5">Mobile</TableHead>
+                          <TableHead className="py-2.5 text-right">Team Size</TableHead>
+                          <TableHead className="py-2.5 w-24 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {groupedTeams.map((team) => (
+                          <TableRow key={team.id} className="hover:bg-muted/30">
+                            <TableCell className="py-3">
+                              <a
+                                href={`/admin/teams/${team.id}`}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                {team.team_name}
+                              </a>
+                            </TableCell>
+                            <TableCell className="py-3 text-sm">
+                              {team.mobile_number || (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3 text-right tabular-nums">
+                              {team.team_size ?? (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="View details"
+                                  onClick={() => router.push(`/admin/teams/${team.id}`)}
+                                >
+                                  <Eye className="size-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  title="Delete team"
+                                  onClick={() => handleDeleteTeam(team.id)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </section>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>
