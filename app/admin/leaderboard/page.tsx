@@ -88,19 +88,40 @@ export default function LeaderboardPage() {
                     <TableRow>
                       <TableHead className="w-20">Rank</TableHead>
                       <TableHead>Team</TableHead>
+                      <TableHead className="text-right">R1</TableHead>
+                      <TableHead className="text-right">R2</TableHead>
+                      <TableHead className="text-right">R3</TableHead>
+                      <TableHead className="text-right">R4 SEC</TableHead>
+                      <TableHead className="text-right">R4 Faculty</TableHead>
                       <TableHead className="text-right">Total Score</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {groupedTeams.map((team) => (
-                      <TableRow key={team.id}>
-                        <TableCell className="font-semibold">#{team.rank}</TableCell>
-                        <TableCell className="font-medium">{team.team_name}</TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {team.cumulative_score ?? 0}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {groupedTeams.map((team) => {
+                      const roundMap = new Map(
+                        (team.round_scores || []).map((rs) => [rs.round_number, rs]),
+                      );
+                      const r1 = roundMap.get(1)?.score;
+                      const r2 = roundMap.get(2)?.score;
+                      const r3 = roundMap.get(3)?.score;
+                      const r4sec = roundMap.get(4)?.sec_score;
+                      const r4fac = roundMap.get(4)?.faculty_score;
+
+                      return (
+                        <TableRow key={team.id}>
+                          <TableCell className="font-semibold">#{team.rank}</TableCell>
+                          <TableCell className="font-medium">{team.team_name}</TableCell>
+                          <TableCell className="text-right">{r1 ?? "—"}</TableCell>
+                          <TableCell className="text-right">{r2 ?? "—"}</TableCell>
+                          <TableCell className="text-right">{r3 ?? "—"}</TableCell>
+                          <TableCell className="text-right">{r4sec ?? "—"}</TableCell>
+                          <TableCell className="text-right">{r4fac ?? "—"}</TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {team.cumulative_score ?? 0}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

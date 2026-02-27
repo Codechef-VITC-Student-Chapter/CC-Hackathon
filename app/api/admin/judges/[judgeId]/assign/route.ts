@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { connectDB } from "@/config/db";
 import Judge from "@/models/Judge";
 import JudgeAssignment from "@/models/JudgeAssignment";
+import Team from "@/models/Team";
 import { proxy } from "@/lib/proxy";
 
 async function POSTHandler(
@@ -23,6 +24,23 @@ async function POSTHandler(
     }
 
     const uniqueTeamIds = [...new Set(teamIds.map((id: string) => id.toString()))];
+    const judge = await Judge.findById(judgeId).select("track_id").lean();
+    if (!judge) {
+      return NextResponse.json({ error: "Judge not found" }, { status: 404 });
+    }
+
+    if (uniqueTeamIds.length > 0) {
+      const validCount = await Team.countDocuments({
+        _id: { $in: uniqueTeamIds },
+        track_id: (judge as any).track_id,
+      });
+      if (validCount !== uniqueTeamIds.length) {
+        return NextResponse.json(
+          { error: "All assigned teams must belong to the judge's track" },
+          { status: 400 },
+        );
+      }
+    }
 
     if (roundId) {
       await JudgeAssignment.findOneAndUpdate(
