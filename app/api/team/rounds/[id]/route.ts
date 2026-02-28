@@ -42,7 +42,13 @@ async function GETHandler(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    if (!canAccessRound(team, round)) {
+    const roundAccessContext = await Round.find({
+      round_number: { $in: [2, 3, 4] },
+    })
+      .select("_id round_number")
+      .lean();
+
+    if (!canAccessRound(team, round as any, roundAccessContext as any[])) {
       return NextResponse.json(
         { error: "You do not have access to this round" },
         { status: 403 },
@@ -259,8 +265,9 @@ async function GETHandler(
     return NextResponse.json(responseData);
   } catch (err: any) {
     console.error("GET /api/team/rounds/[id] error:", err);
-    const status = err.status || 500;
-    const message = err.error || "Internal Server Error";
+    const status = typeof err?.status === "number" ? err.status : 500;
+    const message =
+      status !== 500 && err?.error ? err.error : "Internal Server Error";
     return NextResponse.json({ error: message }, { status });
   }
 }

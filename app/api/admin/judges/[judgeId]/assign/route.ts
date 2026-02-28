@@ -4,6 +4,7 @@ import Judge from "@/models/Judge";
 import JudgeAssignment from "@/models/JudgeAssignment";
 import Team from "@/models/Team";
 import { proxy } from "@/lib/proxy";
+import mongoose from "mongoose";
 
 async function POSTHandler(
   request: NextRequest,
@@ -12,9 +13,17 @@ async function POSTHandler(
   await connectDB();
   const { judgeId } = await context.params;
 
+  if (!mongoose.isValidObjectId(judgeId)) {
+    return NextResponse.json({ error: "Invalid judgeId" }, { status: 400 });
+  }
+
   try {
     const body = await request.json();
     const { teamIds, roundId } = body;
+
+    if (roundId && !mongoose.isValidObjectId(roundId)) {
+      return NextResponse.json({ error: "Invalid roundId" }, { status: 400 });
+    }
 
     if (!Array.isArray(teamIds)) {
       return NextResponse.json(

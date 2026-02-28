@@ -22,10 +22,12 @@ async function POSTHandler(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  // proxy() already verified authentication and the "team" role.
+  // Re-read the session to extract the user's email for the DB lookup.
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
   if (!email) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
 
   const { id: roundId } = await context.params;
@@ -65,7 +67,13 @@ async function POSTHandler(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    if (!canAccessRound(team, round)) {
+    const roundAccessContext = await Round.find({
+      round_number: { $in: [2, 3, 4] },
+    })
+      .select("_id round_number")
+      .lean();
+
+    if (!canAccessRound(team, round as any, roundAccessContext as any[])) {
       return NextResponse.json(
         { error: "You do not have access to this round" },
         { status: 403 },
@@ -216,7 +224,10 @@ async function POSTHandler(
     });
   } catch (err: any) {
     console.error("Error in subtask selection:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update subtask selection" },
+      { status: 500 },
+    );
   }
 }
 
@@ -227,11 +238,13 @@ async function GETHandler(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  // proxy() already verified authentication and the "team" role.
+  // Re-read the session to extract the user's email for the DB lookup.
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
 
   if (!email) {
-    return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
 
   const { id: roundId } = await context.params;
@@ -258,7 +271,13 @@ async function GETHandler(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    if (!canAccessRound(team, round)) {
+    const roundAccessContext = await Round.find({
+      round_number: { $in: [2, 3, 4] },
+    })
+      .select("_id round_number")
+      .lean();
+
+    if (!canAccessRound(team, round as any, roundAccessContext as any[])) {
       return NextResponse.json(
         { error: "You do not have access to this round" },
         { status: 403 },
@@ -323,7 +342,10 @@ async function GETHandler(
     });
   } catch (err: any) {
     console.error("Error retrieving subtask selection:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to retrieve subtask selection" },
+      { status: 500 },
+    );
   }
 }
 
