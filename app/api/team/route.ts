@@ -21,6 +21,7 @@ import Score from "@/models/Score";
 import Judge from "@/models/Judge";
 import "@/models/Track";
 import { proxy } from "@/lib/proxy";
+import { getEffectiveAccessibleRoundIds } from "@/lib/roundPolicy";
 
 export const dynamic = "force-dynamic";
 
@@ -38,24 +39,26 @@ async function GETHandler(request: NextRequest) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    const accessibleRoundIds = team.rounds_accessible.map(
-      (r: any) => r._id ?? r,
+    const allRounds = await Round.find({})
+      .select("_id round_number is_active start_time end_time instructions")
+      .sort({ round_number: 1 })
+      .lean();
+
+    const effectiveAccessibleRoundIds = getEffectiveAccessibleRoundIds(
+      team as any,
+      allRounds as any[],
     );
 
-    // Find the active round: for Round 1, show if active even if not yet in rounds_accessible
-    // For Round 2+, require explicit access (shortlisting)
-    let activeRound = await Round.findOne({
-      _id: { $in: accessibleRoundIds },
-      is_active: true,
-    });
-
-    // Fallback: if no accessible active round, check if Round 1 is globally active
-    if (!activeRound) {
-      const globalActiveRound = await Round.findOne({ is_active: true });
-      if (globalActiveRound && globalActiveRound.round_number === 1) {
-        activeRound = globalActiveRound;
-      }
-    }
+    // Prefer currently active accessible round; fallback to latest accessible round.
+    // This keeps dashboard consistent with the Rounds page visibility.
+    const accessibleRounds = allRounds.filter((r: any) =>
+      effectiveAccessibleRoundIds.has(r._id.toString()),
+    );
+    const activeAccessibleRound = accessibleRounds.find((r: any) => r.is_active);
+    const latestAccessibleRound = [...accessibleRounds].sort(
+      (a: any, b: any) => (b.round_number || 0) - (a.round_number || 0),
+    )[0];
+    const activeRound = activeAccessibleRound || latestAccessibleRound || null;
 
     // Fetch all submissions for this team (all rounds)
     const submissions = await Submission.find({
@@ -159,7 +162,7 @@ async function GETHandler(request: NextRequest) {
       // total_score: totalScore,
       // latest_round_score: latestRoundScore,
       // all_round_scores: allRoundScores,
-      rounds_accessible: accessibleRoundIds,
+      rounds_accessible: Array.from(effectiveAccessibleRoundIds),
     });
 
     // Caatch any errors
