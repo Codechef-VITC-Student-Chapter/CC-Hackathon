@@ -33,7 +33,7 @@ export default function TeamDashboardPage() {
   const activeRound = dashboardData?.current_round;
   const currentRoundSubtask = dashboardData?.current_round_subtask;
   const currentRoundSubmission = dashboardData?.current_round_submission;
-  const currentRoundRemarks = dashboardData?.current_round_remarks ?? [];
+  // const currentRoundRemarks = dashboardData?.current_round_remarks ?? [];
 
   const startTime = activeRound?.start_time ?? null;
   const endTime = activeRound?.end_time ?? null;
@@ -266,7 +266,7 @@ export default function TeamDashboardPage() {
       </Card>
 
       {/* Current Round Remarks */}
-      <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+      {/* <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-blue-600" />
@@ -305,7 +305,8 @@ export default function TeamDashboardPage() {
             </p>
           )}
         </CardContent>
-      </Card>
+      </Card> */}
+
 
       {/* All Round Scores (hidden for teams) */}
       {/*
